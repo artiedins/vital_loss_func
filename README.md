@@ -13,16 +13,20 @@ The scoring encodes current literature across seven physiological domains: fitne
 
 ```bash
 git clone <repo>
-cd vitality-loss-function
+cd vital_loss_func
 pip install pyyaml
 
-# Run immediately on sample data
+# Add your own raw health data in any format, just dump in this directory:
+mkdir raw_test_results
+
+# Tell your agent "Read `AGENT.md` and follow the instructions.", agent will populate:
+mkdir dated_test_results
+
+# Then run
 python compute_loss.py
 
-# Add your own results (see AGENT.md for format)
-mkdir dated_test_results
-# drop results_YYYY_MM_DD.yaml files in dated_test_results/
-python compute_loss.py
+# cut and paste output into agent for analysis and actions for improving health/vitality and reducing mortality
+
 ```
 
 ---
@@ -48,9 +52,6 @@ vitality-loss-function/
 ├── compute_loss.py          # the loss function — run this
 ├── AGENT.md                 # instructions for AI agents (and curious humans)
 ├── README.md                # this file
-├── sample_data/             # anonymized examples — runs out of the box
-│   ├── results_2024_01_15.yaml
-│   └── results_2024_06_10.yaml
 ├── dated_test_results/      # your personal data — gitignored
 └── raw_test_results/        # raw documents — gitignored
 ```
@@ -67,6 +68,6 @@ vitality-loss-function/
 ## Notes
 
 - `dated_test_results/` and `raw_test_results/` are gitignored. Your data stays local.
-- Missing keys use population-based defaults. The loss curve improves as you replace defaults with real measurements.
+- Missing keys use population-based defaults. The loss curve improves (in relevance) as you replace defaults with real measurements.
 - Tests taken on different dates (blood panel vs DEXA vs fitness) go in separate files. The script handles merging automatically using nearest-in-time values.
 - The function is intentionally stable. It should not change unless substantive new research warrants it.
