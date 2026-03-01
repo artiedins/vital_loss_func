@@ -19,7 +19,7 @@ Track the loss curve over months. Down is good. Flat with age is acceptable. Up 
 ## Quick start
 
 ```bash
-git clone <repo>
+git clone https://github.com/artiedins/vital_loss_func.git
 cd vital_loss_func
 pip install pyyaml
 mkdir raw_test_results dated_test_results
