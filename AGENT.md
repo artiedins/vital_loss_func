@@ -64,13 +64,24 @@ hba1c_percent: 5.2
 
 All keys, units, and scoring intent. Include only keys you can confidently derive.
 
+### Global parameter
+
+**sex** — `male` or `female`  
+Include this key in any one of your dated YAML files. It applies globally to the entire scoring session — you do not need to repeat it in every file. If absent, the script defaults to `male`. Three fitness scoring curves differ by sex (VO2 max, grip strength, ALMI); all other biomarker thresholds are sex-neutral.
+
+```yaml
+sex: female
+```
+
+---
+
 ### Fitness / Function  (domain weight: 25%)
 
 **vo2_max_ml_kg_min** — mL/kg/min  
-Maximum oxygen uptake. Must be from a proper incremental lab protocol (Bruce, Balke, or cycle ergometer equivalent). Do not use formula estimates from resting HR or submaximal step tests — these have ±15% error and will corrupt this domain. Score 100 at ≥52, 0 at ≤22.
+Maximum oxygen uptake. Must be from a proper incremental lab protocol (Bruce, Balke, or cycle ergometer equivalent). Do not use formula estimates from resting HR or submaximal step tests — these have ±15% error and will corrupt this domain. Score 100 at ≥52 (male) or ≥42 (female), 0 at ≤22 (male) or ≤19 (female). Sources: ACSM/Cooper Institute normative data; FRIEND database, Mayo Clinic Proceedings 2015.
 
 **grip_strength_kg** — kg  
-Dominant hand, best of 3 attempts with a calibrated handheld dynamometer (Jamar or equivalent). Score 100 at ≥52 kg, 0 at ≤28 kg.
+Dominant hand, best of 3 attempts with a calibrated handheld dynamometer (Jamar or equivalent). Score 100 at ≥52 kg (male) or ≥36 kg (female), 0 at ≤28 kg (male) or ≤16 kg (female). Female poor threshold is the EWGSOP2 sarcopenia cutoff, validated in German National Cohort n=200,389. Sources: Cruz-Jentoft et al. Age Ageing 2019; Thorand et al. Age Ageing 2023.
 
 **fev1_percent_predicted** — % of GLI-2012 predicted value  
 FEV1 as a percentage of the GLI-2012 age/sex/height-adjusted reference. Values above 100% are possible for fit individuals and clamp to 100 in scoring. Score 100 at ≥100%, 0 at ≤60%.
@@ -81,7 +92,7 @@ HR at peak effort minus HR exactly 60 seconds after stopping exercise. Requires 
 **Critical:** HRR is only valid when measured after a near-maximum effort — the final minutes of a VO2 max test, a hard interval session, or a dedicated ramp test. Do not extract HRR from Zone 2 workouts, easy runs, or resting sessions. A Zone 2 HR at end of workout minus HR one minute later will produce a low number (often 8–15 bpm) that reflects the modest cardiovascular demand of the session, not the autonomic recovery capacity this metric is designed to capture. If the raw data does not contain a documented max-effort test, omit this key entirely rather than using a proxy value.
 
 **almi_kg_m2** — kg/m²  
-Appendicular Lean Mass Index from DEXA: (arms + legs lean mass in kg) ÷ height in meters². Same DEXA scan as vat_cm2. Score 100 at ≥8.7 kg/m², 0 at ≤7.0 kg/m².
+Appendicular Lean Mass Index from DEXA: (arms + legs lean mass in kg) ÷ height in meters². Same DEXA scan as vat_cm2. Score 100 at ≥8.7 kg/m² (male) or ≥7.5 kg/m² (female), 0 at ≤7.0 kg/m² (male) or ≤5.5 kg/m² (female). Female poor threshold consistent with EWGSOP2 and Tromsø Study sarcopenia cutoffs. Source: Cruz-Jentoft et al. Age Ageing 2019; Tromsø Study 2015–16.
 
 ---
 

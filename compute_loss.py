@@ -55,12 +55,13 @@ DEFAULTS = {
 
 # Score = 100 at these values. Used for gradient computation.
 # fasting_glucose excluded — its signal is captured through hba1c blend.
+# Three fitness keys are sex-specific — see get_optimal().
 OPTIMALS = {
-    "vo2_max_ml_kg_min": 52.0,
-    "grip_strength_kg": 52.0,
+    "vo2_max_ml_kg_min": 52.0,  # male; female = 42.0
+    "grip_strength_kg": 52.0,  # male; female = 36.0
     "fev1_percent_predicted": 100.0,
     "heart_rate_recovery_bpm": 30.0,
-    "almi_kg_m2": 8.7,
+    "almi_kg_m2": 8.7,  # male; female = 7.5
     "apoB_mg_dl": 55.0,
     "systolic_bp_mmHg": 115.0,
     "rdw_percent": 12.5,
@@ -80,6 +81,15 @@ OPTIMALS = {
     "albumin_g_dl": 4.4,
     "tsh_miu_l": 2.4,
     "free_t4_ng_dl": 1.15,
+}
+
+# Female-specific thresholds for the three sex-differentiated fitness keys.
+# Sources: ACSM/Cooper Institute/FRIEND database (VO2), EWGSOP2 + NAKO n=200K (grip),
+#          EWGSOP2 / Tromsø Study (ALMI). Males unchanged.
+FEMALE_THRESHOLDS = {
+    "vo2_max_ml_kg_min": {"opt": 42.0, "poor": 19.0},
+    "grip_strength_kg": {"opt": 36.0, "poor": 16.0},
+    "almi_kg_m2": {"opt": 7.5, "poor": 5.5},
 }
 
 TEST_METHODS = {
@@ -172,22 +182,36 @@ def _logd(v, opt, poor):  # log descending: lower = better, right-skewed distrib
     return clamp(100.0 * (math.log(poor) - lv) / (math.log(poor) - math.log(opt)))
 
 
-def score_key(key, value):
+def get_optimal(key, sex):
+    if sex == "female" and key in FEMALE_THRESHOLDS:
+        return FEMALE_THRESHOLDS[key]["opt"]
+    return OPTIMALS[key]
+
+
+def score_key(key, value, sex="male"):
     if value is None:
         return None
     v = float(value)
 
-    # fitness
+    # fitness — three keys are sex-specific
     if key == "vo2_max_ml_kg_min":
+        if sex == "female":
+            return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
         return _la(v, 22.0, 52.0)
     if key == "grip_strength_kg":
+        if sex == "female":
+            return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
         return _la(v, 28.0, 52.0)
+    if key == "almi_kg_m2":
+        if sex == "female":
+            return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
+        return _la(v, 7.0, 8.7)
+
+    # fitness — sex-neutral
     if key == "fev1_percent_predicted":
         return _la(v, 60.0, 100.0)
     if key == "heart_rate_recovery_bpm":
         return _la(v, 10.0, 30.0)
-    if key == "almi_kg_m2":
-        return _la(v, 7.0, 8.7)
 
     # cardiovascular
     if key == "apoB_mg_dl":
@@ -277,27 +301,27 @@ def score_key(key, value):
 # ── composite and loss ─────────────────────────────────────────────────────────
 
 
-def domain_score(domain, values):
+def domain_score(domain, values, sex):
     ws, wt = 0.0, 0.0
     for key, w in DOMAIN_COMPONENTS[domain]:
         if key == "hba1c_percent" and domain == "metabolic":
-            s1 = score_key("hba1c_percent", values.get("hba1c_percent"))
+            s1 = score_key("hba1c_percent", values.get("hba1c_percent"), sex)
             fg = values.get("fasting_glucose_mg_dl")
             if fg is not None and s1 is not None:
-                s2 = score_key("fasting_glucose_mg_dl", fg)
+                s2 = score_key("fasting_glucose_mg_dl", fg, sex)
                 cs = 0.70 * s1 + 0.30 * (s2 if s2 is not None else s1)
             else:
                 cs = s1
         else:
-            cs = score_key(key, values.get(key))
+            cs = score_key(key, values.get(key), sex)
         if cs is not None:
             ws += w * cs
             wt += w
     return (ws / wt) if wt > 0 else 50.0
 
 
-def composite_score(values):
-    return sum(DOMAIN_WEIGHTS[d] * domain_score(d, values) for d in DOMAIN_WEIGHTS)
+def composite_score(values, sex):
+    return sum(DOMAIN_WEIGHTS[d] * domain_score(d, values, sex) for d in DOMAIN_WEIGHTS)
 
 
 def interaction_modifier(values):
@@ -319,8 +343,8 @@ def interaction_modifier(values):
     return product, mods
 
 
-def compute_loss(values):
-    comp = composite_score(values)
+def compute_loss(values, sex):
+    comp = composite_score(values, sex)
     mod, mods = interaction_modifier(values)
     adjusted = clamp(comp * mod, lo=0.5, hi=100.0)
     return -math.log(adjusted / 100.0), adjusted, mods
@@ -337,7 +361,9 @@ def load_dated_files():
         using_sample = True
 
     files = []
-    for f in sorted(src.glob("*.yaml")):
+    raw_paths = sorted(src.glob("*.yaml"))
+
+    for f in raw_paths:
         try:
             stem = f.stem.replace("results_", "")
             parts = stem.replace("-", "_").split("_")
@@ -359,7 +385,17 @@ def load_dated_files():
         except Exception as e:
             print(f"# Skipping {f.name}: {e}")
 
-    return sorted(files, key=lambda x: x[0]), using_sample
+    return sorted(files, key=lambda x: x[0]), using_sample, raw_paths
+
+
+def load_sex(raw_paths):
+    # Read sex from any YAML file that specifies it; default to male.
+    for f in raw_paths:
+        with open(f) as fp:
+            raw = yaml.safe_load(fp) or {}
+        if raw.get("sex") in ("male", "female"):
+            return raw["sex"]
+    return "male"
 
 
 def fill_for_date(target, dated_files):
@@ -399,15 +435,16 @@ def key_source(key, target, dated_files):
 # ── gradient analysis ──────────────────────────────────────────────────────────
 
 
-def compute_gradients(values, current_loss, measured):
+def compute_gradients(values, current_loss, measured, sex):
     results = []
-    for key, opt in OPTIMALS.items():
+    for key in OPTIMALS:
+        opt = get_optimal(key, sex)
         test = dict(values)
         test[key] = opt
-        new_loss, _, _ = compute_loss(test)
+        new_loss, _, _ = compute_loss(test, sex)
         delta = current_loss - new_loss
         if delta > 0.001:
-            sc = score_key(key, values.get(key))
+            sc = score_key(key, values.get(key), sex)
             src = "measured" if key in measured else "DEFAULT"
             results.append((key, values.get(key), opt, sc, delta, src))
     return sorted(results, key=lambda x: -x[4])
@@ -417,7 +454,8 @@ def compute_gradients(values, current_loss, measured):
 
 
 def main():
-    dated_files, using_sample = load_dated_files()
+    dated_files, using_sample, raw_paths = load_dated_files()
+    sex = load_sex(raw_paths)
 
     if not dated_files:
         print("# No data files found.")
@@ -434,7 +472,7 @@ def main():
     timeline = []
     for dt, _ in dated_files:
         vals = fill_for_date(dt, dated_files)
-        loss, comp, mods = compute_loss(vals)
+        loss, comp, mods = compute_loss(vals, sex)
         timeline.append((dt, loss, comp, mods, vals))
 
     # primary output: one line per date, machine-readable
@@ -450,7 +488,7 @@ def main():
     # data coverage
     scoreable = [k for k in DEFAULTS if k != "fasting_glucose_mg_dl"]
     never = [k for k in scoreable if k not in measured]
-    print(f"DATA COVERAGE  (as of {latest_dt})")
+    print(f"DATA COVERAGE  (as of {latest_dt}  sex={sex})")
     print(f"  measured : {len(measured)} / {len(scoreable)}")
     if never:
         print(f"  defaults : {', '.join(never)}")
@@ -464,7 +502,7 @@ def main():
         print(f"  [{domain}  weight={DOMAIN_WEIGHTS[domain]:.0%}]")
         for key, _ in components:
             val = latest_vals.get(key)
-            sc = score_key(key, val)
+            sc = score_key(key, val, sex)
             src = key_source(key, latest_dt, dated_files)
             vs = f"{val:.2f}" if isinstance(val, (int, float)) and val is not None else "—"
             ss = f"{sc:.1f}" if sc is not None else "—"
@@ -482,7 +520,7 @@ def main():
     print()
 
     # gradient table
-    grads = compute_gradients(latest_vals, latest_loss, measured)
+    grads = compute_gradients(latest_vals, latest_loss, measured, sex)
     print("GRADIENT ANALYSIS  (loss reduction if key reaches optimal)")
     print(f"  {'#':<3} {'key':<32} {'current':>8} {'optimal':>8} {'score':>6} {'Δloss':>7}  source")
     print(f"  {'─'*3} {'─'*32} {'─'*8} {'─'*8} {'─'*6} {'─'*7}  {'─'*10}")
