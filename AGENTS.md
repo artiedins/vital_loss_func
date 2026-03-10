@@ -1,4 +1,4 @@
-# AGENT.md — Vitality Loss Function
+# AGENTS.md — Vitality Loss Function
 
 ## What This Is
 
@@ -16,7 +16,7 @@ The composite is a weighted sum across seven physiological domains, scoring each
 ## Workflow
 
 ### If you can execute code (e.g., coding agent, Claude Code, OpenClaw):
-1. Read `AGENT.md` (this file)
+1. Read `AGENTS.md` (this file)
 2. Optionally read `compute_loss.py` for exact scoring thresholds
 3. Read documents in `raw_test_results/`
 4. Write dated YAML files to `dated_test_results/`
@@ -50,7 +50,7 @@ One file per test date. If a blood panel was drawn on March 1st and a DEXA scan 
 ### Example file header
 ```yaml
 # Blood panel — comprehensive metabolic + lipid + thyroid + hs-CRP + homocysteine
-# Draw date: 2025-03-01. Fasting: yes (12 hours). Lab: Quest Diagnostics.
+# Draw date: 2025-03-01. Fasting: yes (12 hours). Lab: Function Health.
 # Fitness and sleep keys not in this file — in separate dated files.
 
 apoB_mg_dl: 68.0
@@ -99,23 +99,23 @@ Appendicular Lean Mass Index from DEXA: (arms + legs lean mass in kg) ÷ height 
 ### Cardiovascular  (domain weight: 20%)
 
 **apoB_mg_dl** — mg/dL  
-Apolipoprotein B. NMR or immunonephelometry. Must be requested specifically — not included in all standard lipid panels. Score uses log scale: 100 at ≤60 mg/dL, 0 at ≥150 mg/dL.
+Apolipoprotein B. NMR or immunonephelometry. Must be requested specifically — not included in all standard lipid panels. Score uses log scale: 100 at ≤70 mg/dL, 0 at ≥150 mg/dL. The ≤70 threshold reflects the epidemiological all-cause mortality nadir (~70–75 mg/dL) from large cohort data; EAS guidelines target <55 only for patients with established cardiovascular disease.
 
 **systolic_bp_mmHg** — mmHg  
-Seated, rested for 5 minutes, validated automated cuff, average of 3 readings with 1-minute intervals. Do not use a single reading. Scoring is tiered: 100 if <120, 85 if 120–129, 65 if 130–139, declining to 0 at 180.
+Seated, rested for 5 minutes, validated automated cuff, average of 3 readings with 1-minute intervals. Do not use a single reading. Scoring is tiered: 100 if <115, 92 if 115–119, 85 if 120–129, 65 if 130–139, declining to 0 at 180. Observational data show continuous CVD risk reduction down to 115 mmHg; SPRINT validated the <120 target in an RCT but did not directly test <115 vs <120.
 
 **rdw_percent** — %  
 Red cell distribution width from a CBC. U-shaped scoring: 100 in the 12.0–13.1% range, declining to 0 at extremes (≤10.5% or ≥16.5%).
 
 **resting_hr_bpm** — bpm  
-Morning supine measurement, before rising, before caffeine. 5-minute average from a chest HR monitor or validated wearable. Score 100 at ≤48 bpm, 0 at ≥95 bpm.
+Overnight minimum from a validated wearable (Oura Ring preferred — captures true cardiac minimum during sleep when sympathetic tone is lowest). Score 100 at ≤48 bpm, 0 at ≥95 bpm.
 
 ---
 
 ### Metabolic  (domain weight: 20%)
 
 **hba1c_percent** — %  
-NGSP-standardized HbA1c. In standard panels. Optimal zone 5.0–5.4%. Values below 5.0% are mildly penalized (often reflect hemoglobin variants or hemolysis rather than true glycemic benefit). Score 100 at 5.0–5.4%.
+NGSP-standardized HbA1c. In standard panels. Optimal zone 5.0–5.4% (mortality nadir at 5.38%, JCEM 2019, n=15,869). Values below 5.0% are mildly penalized — in athletes this often reflects faster red blood cell turnover rather than true glycemic benefit. Score 100 at 5.0–5.4%.
 
 **fasting_glucose_mg_dl** — mg/dL  (optional)  
 Only include if drawn after 8+ hours fasting. When present, blends with HbA1c (70/30) to form the glycemic component. If absent, HbA1c alone covers glycemic control. Score 100 at ≤85 mg/dL.
@@ -133,7 +133,7 @@ Standard lipid panel. Score 100 at ≥65 mg/dL, 0 at ≤30 mg/dL.
 
 ### Sleep / Recovery  (domain weight: 12%)
 
-This domain is commonly incomplete because it requires a wearable. Missing keys fall back to defaults. Encourage the human to add a validated sleep tracker if this domain is on defaults.
+This domain is commonly incomplete because it requires a wearable. Missing keys fall back to defaults. Encourage the human to add a validated sleep tracker if this domain is on defaults. The Oura Ring is the preferred device for all sleep keys; hrv_ms may also be sourced from a Polar H10 morning protocol (see below).
 
 **sleep_regularity_index** — 0–100  
 Consistency of sleep/wake timing. Derivable from any wearable that tracks sleep/wake times over 7+ days (Oura, WHOOP, Garmin, Apple Watch, and others). If the device does not report SRI directly, it can be computed as the average daily overlap of sleep windows across consecutive days. Use a 30-day rolling average. Score 100 at ≥85, 0 at ≤45.
@@ -142,7 +142,7 @@ Consistency of sleep/wake timing. Derivable from any wearable that tracks sleep/
 Average nightly sleep duration (time asleep, not time in bed). 30-day average. Score 100 at 6.5–8.0 hours. The penalty for sleeping less than 6.5h is steep; the penalty for sleeping more than 8.0h is shallow (long sleep in active individuals often reflects recovery need rather than pathology).
 
 **hrv_ms** — ms (RMSSD)  
-Root mean square of successive differences in R-R intervals. Two acceptable sources: (1) Polar H10 morning supine 5-minute protocol — lie flat before rising, no caffeine, record via Polar Flow or Elite HRV app; (2) Oura Ring overnight average. Do not use HRV readings from during exercise or from optical wrist sensors during activity. Note the source in a YAML comment. Score 100 at ≥60 ms, 0 at ≤18 ms. **This value declines naturally with age even in healthy individuals — a declining hrv_ms over years is expected biology, not failure.**
+Root mean square of successive differences in R-R intervals. Two acceptable sources: (1) Polar H10 morning supine 5-minute protocol — lie flat before rising, no caffeine, record via Polar Flow or Elite HRV app; (2) Oura Ring overnight average. The Polar H10 protocol produces a more controlled, reproducible number; the Oura overnight average is convenient but blends readings across sleep stages. Do not use HRV readings from during exercise or from optical wrist sensors during activity. Note the source in a YAML comment. Score 100 at ≥60 ms, 0 at ≤18 ms. **This value declines naturally with age even in healthy individuals — a declining hrv_ms over years is expected biology, not failure.**
 
 **sleep_efficiency_percent** — %  
 Time asleep divided by time in bed × 100. 30-day average from wearable. Score 100 at ≥87%, 0 at ≤65%.
@@ -156,6 +156,9 @@ HIGH-SENSITIVITY CRP — must be requested specifically. Standard CRP panels hav
 
 **homocysteine_umol_l** — μmol/L  
 Fasting. Must be requested specifically — not in standard panels. Primary modulators are B12, B6, and folate. Score uses log scale: 100 at ≤6.5 μmol/L, 0 at ≥25 μmol/L.
+
+**omega3_index_percent** — %  
+EPA + DHA as a percentage of total red blood cell membrane fatty acids. Dried blood spot test — available through Function Health or standalone labs (OmegaQuant). Score 100 at ≥8%, 0 at ≤4%. Linear ascending scale. Values above 8% are not penalized. Source: Eur J Prev Cardiol 2024 meta-analysis (n=134,144): ≥8% associated with 8% reduction in cardiovascular death, 11% reduction in MI. Do not confuse with blood serum omega-3 levels — the index specifically measures RBC membrane composition.
 
 ---
 
@@ -228,7 +231,7 @@ Use the gradient table as your primary guide. Address in this order:
    - **cardiovascular**: ApoB responds to diet (reduce saturated fat, add fiber, consider statin if warranted), systolic BP responds to sodium reduction, exercise, sleep
    - **metabolic**: VAT responds to sustained caloric deficit + aerobic exercise; HDL responds to Zone 2 cardio and alcohol reduction; triglycerides respond to sugar/refined carb reduction
    - **sleep**: SRI responds to fixed wake time (most powerful lever); sleep duration responds to earlier bedtime; HRV responds to reduced alcohol, lower training load, and improved sleep quality
-   - **inflammation**: hs-CRP responds to weight loss, sleep improvement, anti-inflammatory diet; homocysteine responds to B12/B6/folate supplementation (confirm deficiency first)
+   - **inflammation**: hs-CRP responds to weight loss, sleep improvement, anti-inflammatory diet; homocysteine responds to B12/B6/folate supplementation (confirm deficiency first); omega3_index responds to EPA/DHA supplementation (typically 2–4g/day to reach ≥8%) and reduction of competing omega-6 intake
    - **renal**: cystatin C and eGFR — flag any concerning values for clinical evaluation; hydration and avoiding nephrotoxic substances are the primary lifestyle levers
    - **hormonal**: TSH outside 1.9–2.9 warrants clinical evaluation; do not recommend self-directed thyroid intervention
 

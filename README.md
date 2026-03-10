@@ -32,9 +32,9 @@ python compute_loss.py   # runs on defaults until you add data
 
 Drop your raw health documents (lab PDFs, wearable exports, test reports, any format) into `raw_test_results/`. Then tell your agent:
 
-> "Read `AGENT.md` and follow the instructions."
+> "Read `AGENTS.md` and follow the instructions."
 
-The agent will extract biomarkers, write dated YAML files to `dated_test_results/`, run the script, and interpret the gradient output. If your agent can execute code, this is a single session. If you're using a web interface, `AGENT.md` walks through the manual steps.
+The agent will extract biomarkers, write dated YAML files to `dated_test_results/`, run the script, and interpret the gradient output. If your agent can execute code, this is a single session. If you're using a web interface, `AGENTS.md` walks through the manual steps.
 
 ---
 
@@ -43,7 +43,7 @@ The agent will extract biomarkers, write dated YAML files to `dated_test_results
 ```
 vital_loss_func/
 ├── compute_loss.py       # the loss function — run this
-├── AGENT.md              # instructions for AI agents (and curious humans)
+├── AGENTS.md              # instructions for AI agents (and curious humans)
 ├── README.md             # this file
 ├── .gitignore
 ├── raw_test_results/     # gitignored — drop raw documents here

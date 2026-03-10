@@ -4,7 +4,7 @@
 # loss = -log(composite/100). Lower is better. Zero is perfect.
 # Down over time is good. Flat with aging is acceptable. Up is a signal.
 #
-# See AGENT.md for data preparation, key definitions, and interpretation.
+# See AGENTS.md for data preparation, key definitions, and interpretation.
 
 import yaml, math
 from pathlib import Path
@@ -46,6 +46,7 @@ DEFAULTS = {
     "sleep_efficiency_percent": 82.0,
     "hs_crp_mg_l": 1.2,
     "homocysteine_umol_l": 9.0,
+    "omega3_index_percent": 5.5,  # population average; most adults are suboptimal
     "cystatin_c_mg_l": 0.90,
     "egfr_ml_min_1_73m2": 88.0,
     "albumin_g_dl": 4.1,
@@ -62,8 +63,8 @@ OPTIMALS = {
     "fev1_percent_predicted": 100.0,
     "heart_rate_recovery_bpm": 30.0,
     "almi_kg_m2": 8.7,  # male; female = 7.5
-    "apoB_mg_dl": 55.0,
-    "systolic_bp_mmHg": 115.0,
+    "apoB_mg_dl": 70.0,  # epidemiological nadir ~70-75 mg/dL (Copenhagen/NHANES)
+    "systolic_bp_mmHg": 112.0,  # midpoint of <115 zone
     "rdw_percent": 12.5,
     "resting_hr_bpm": 44.0,
     "hba1c_percent": 5.2,
@@ -76,6 +77,7 @@ OPTIMALS = {
     "sleep_efficiency_percent": 90.0,
     "hs_crp_mg_l": 0.3,
     "homocysteine_umol_l": 5.5,
+    "omega3_index_percent": 8.0,  # ≥8% per Eur J Prev Cardiol 2024, n=134,144
     "cystatin_c_mg_l": 0.75,
     "egfr_ml_min_1_73m2": 95.0,
     "albumin_g_dl": 4.4,
@@ -93,31 +95,32 @@ FEMALE_THRESHOLDS = {
 }
 
 TEST_METHODS = {
-    "vo2_max_ml_kg_min": "Lab VO2 max test (treadmill or cycle ergometer, incremental protocol)",
+    "vo2_max_ml_kg_min": "Lab VO2 max test",
     "grip_strength_kg": "Handheld dynamometer, dominant hand, best of 3 attempts",
     "fev1_percent_predicted": "Spirometry with GLI-2012 reference equations",
-    "heart_rate_recovery_bpm": "HR at peak effort minus HR at exactly 60 seconds after stopping",
-    "almi_kg_m2": "DEXA scan with body composition analysis",
-    "apoB_mg_dl": "Blood panel — request ApoB specifically (not in all panels)",
+    "heart_rate_recovery_bpm": "Lab VO2 max test",
+    "almi_kg_m2": "DEXA scan",
+    "apoB_mg_dl": "Function Health",
     "systolic_bp_mmHg": "Validated BP cuff: seated, rested 5 min, average of 3",
-    "rdw_percent": "CBC (complete blood count) — in most standard panels",
-    "resting_hr_bpm": "Morning supine 5-min average before rising, before caffeine",
-    "hba1c_percent": "Standard blood panel",
-    "fasting_glucose_mg_dl": "Standard blood panel, 8+ hours fasted",
-    "vat_cm2": "DEXA scan with visceral fat analysis (same scan as ALMI)",
-    "triglycerides_mg_dl": "Standard blood panel, fasting preferred",
-    "hdl_c_mg_dl": "Standard blood panel",
-    "sleep_regularity_index": "Wearable (Oura, WHOOP, Garmin): 30-day rolling SRI",
-    "sleep_duration_hours": "Wearable or sleep diary: 30-day average nightly sleep",
-    "hrv_ms": "RMSSD: Polar H10 morning supine 5-min or Oura overnight average",
-    "sleep_efficiency_percent": "Wearable: 30-day average (time asleep / time in bed × 100)",
-    "hs_crp_mg_l": "Blood panel — request HIGH-SENSITIVITY CRP specifically",
-    "homocysteine_umol_l": "Blood panel — request specifically",
-    "cystatin_c_mg_l": "Blood panel — request specifically (not in standard panels)",
-    "egfr_ml_min_1_73m2": "Calculated from creatinine + cystatin C (CKD-EPI 2021)",
-    "albumin_g_dl": "Standard blood panel",
-    "tsh_miu_l": "Standard blood panel (3rd-generation TSH)",
-    "free_t4_ng_dl": "Blood panel — request FREE T4 specifically (not total T4)",
+    "rdw_percent": "Function Health",
+    "resting_hr_bpm": "Oura Ring",
+    "hba1c_percent": "Function Health",
+    "fasting_glucose_mg_dl": "Function Health",
+    "vat_cm2": "DEXA scan",
+    "triglycerides_mg_dl": "Function Health",
+    "hdl_c_mg_dl": "Function Health",
+    "sleep_regularity_index": "Oura Ring",
+    "sleep_duration_hours": "Oura Ring",
+    "hrv_ms": "Polar H10 morning supine 5-min",
+    "sleep_efficiency_percent": "Oura Ring",
+    "hs_crp_mg_l": "Function Health",
+    "homocysteine_umol_l": "Function Health",
+    "omega3_index_percent": "Function Health",
+    "cystatin_c_mg_l": "Function Health",
+    "egfr_ml_min_1_73m2": "Function Health",
+    "albumin_g_dl": "Function Health",
+    "tsh_miu_l": "Function Health",
+    "free_t4_ng_dl": "Function Health",
 }
 
 DOMAIN_COMPONENTS = {
@@ -147,8 +150,9 @@ DOMAIN_COMPONENTS = {
         ("sleep_efficiency_percent", 0.10),
     ],
     "inflammation": [
-        ("hs_crp_mg_l", 0.60),
-        ("homocysteine_umol_l", 0.40),
+        ("hs_crp_mg_l", 0.48),  # rescaled from 0.60 to accommodate omega3
+        ("homocysteine_umol_l", 0.32),  # rescaled from 0.40 to accommodate omega3
+        ("omega3_index_percent", 0.20),  # added: Eur J Prev Cardiol 2024, n=134,144
     ],
     "renal": [
         ("cystatin_c_mg_l", 0.60),
@@ -215,10 +219,16 @@ def score_key(key, value, sex="male"):
 
     # cardiovascular
     if key == "apoB_mg_dl":
-        return _logd(v, 60.0, 150.0)
+        # Optimal 70 mg/dL — epidemiological nadir ~70-75 (Copenhagen/NHANES data).
+        # EAS <55 target applies to patients with established CVD, not healthy individuals.
+        return _logd(v, 70.0, 150.0)
     if key == "systolic_bp_mmHg":
-        if v < 120:
+        # Three-step curve: observational data show continuous CVD risk reduction to 115 mmHg.
+        # SPRINT did not directly compare <115 vs <120; gradient is real but magnitude is small.
+        if v < 115:
             return 100.0
+        if v < 120:
+            return 92.0
         if v < 130:
             return 85.0
         if v < 140:
@@ -235,6 +245,8 @@ def score_key(key, value, sex="male"):
 
     # metabolic
     if key == "hba1c_percent":
+        # Plateau 5.0-5.4 = 100; optimal 5.2 (JCEM 2019 nadir 5.38%).
+        # Elevated mortality below 5.0% (HR 1.57, meta-analysis 74 studies).
         if 5.0 <= v <= 5.4:
             return 100.0
         if v < 5.0:
@@ -272,6 +284,11 @@ def score_key(key, value, sex="male"):
         return _logd(v, 0.5, 15.0)
     if key == "homocysteine_umol_l":
         return _logd(v, 6.5, 25.0)
+    if key == "omega3_index_percent":
+        # Linear ascending: poor = 4% (high CV risk), optimal = 8%.
+        # Eur J Prev Cardiol 2024, n=134,144: 8% CVD mortality reduction at ≥8%.
+        # Values >8% are not penalized (clamped at 100).
+        return _la(v, 4.0, 8.0)
 
     # renal
     if key == "cystatin_c_mg_l":
@@ -460,7 +477,7 @@ def main():
     if not dated_files:
         print("# No data files found.")
         print("# Add results_YYYY_MM_DD.yaml files to dated_test_results/")
-        print("# See AGENT.md for format and key definitions.")
+        print("# See AGENTS.md for format and key definitions.")
         return
 
     if using_sample:
@@ -538,7 +555,7 @@ def main():
     if default_grads:
         print("  A. GET THESE TESTS  (high-gradient keys on defaults — real values may move loss significantly)")
         for key, cur, opt, sc, delta in default_grads[:5]:
-            method = TEST_METHODS.get(key, "see AGENT.md")
+            method = TEST_METHODS.get(key, "see AGENTS.md")
             print(f"     Δloss={delta:.4f}  {key:<32}  {method}")
     if measured_grads:
         print()
@@ -549,7 +566,7 @@ def main():
 
     print()
     print("---")
-    print("Paste this output to an AI agent alongside AGENT.md Section B for interpretation.")
+    print("Paste this output to an AI agent alongside AGENTS.md Section B for interpretation.")
 
 
 if __name__ == "__main__":
