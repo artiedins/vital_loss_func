@@ -2,13 +2,13 @@
 
 ## The idea
 
-Most AI agents have stale medical training data. But they're excellent at translating formats — PDFs, lab reports, wearable exports — into structured YAML. And they understand loss functions.
+Most AI agents have stale medical training data, but they're excellent at translating formats (PDFs, lab reports, wearable exports) into structured YAML. They also understand loss functions.
 
-So instead of asking an agent "what does my bloodwork mean," we encoded the latest research directly into a scalar loss function, then let the agent do what it's actually good at: format translation and gradient interpretation.
+So instead of asking an agent what your bloodwork means, we encoded the latest research directly into a scalar loss function and let the agent do what it's actually good at: format translation and gradient interpretation.
 
 **Loss = −log(composite/100).** Lower is better. Zero is perfect.
 
-The agent reads your raw health documents, maps them to a well-specified schema, runs the script, and gets back a prioritized gradient table — exactly which inputs, if improved, would reduce the loss most. It doesn't need to know the underlying medicine. The research is already baked into the function. The agent just needs to help you descend the gradient.
+The agent reads your raw health documents, maps them to a well-specified schema, runs the script, and gets back a prioritized gradient table showing exactly which inputs, if improved, would reduce the loss most. The research is already baked into the function, so the agent doesn't need to know the underlying medicine. It just needs to help you descend the gradient.
 
 This works with any capable LLM. Even models with outdated medical knowledge can translate a lab PDF into YAML and interpret "move this value toward the target to reduce loss." The research injection happens at design time, not inference time.
 
@@ -72,45 +72,45 @@ vital_loss_func/
 
 For clinicians and technically-minded readers. Seven domains, each scored 0–100 and weighted by evidence for mortality and functional-capacity outcomes.
 
-**Fitness / Function — 25%**
-The only domain measuring actual physiological capacity rather than risk proxies. Weighted highest accordingly.
-- VO2 max (mL/kg/min) — maximal oxygen uptake, incremental lab protocol
-- Grip strength (kg) — dominant hand, calibrated dynamometer
-- FEV1 % predicted — spirometry, GLI-2012 reference equations
-- Heart rate recovery (bpm) — 1-minute post-maximal-effort drop
-- ALMI (kg/m²) — appendicular lean mass index from DEXA
+**Fitness / Function: 25%**
+The only domain measuring actual physiological capacity rather than risk proxies, weighted highest accordingly.
+- VO2 max (mL/kg/min): maximal oxygen uptake, incremental lab protocol
+- Grip strength (kg): dominant hand, calibrated dynamometer
+- FEV1 % predicted: spirometry, GLI-2012 reference equations
+- Heart rate recovery (bpm): 1-minute post-maximal-effort drop
+- ALMI (kg/m²): appendicular lean mass index from DEXA
 
-**Cardiovascular — 20%**
-- ApoB (mg/dL) — preferred over LDL-C; captures atherogenic particle burden directly
-- Systolic BP (mmHg) — tiered scoring with thresholds at 120 and 130
-- RDW (%) — red cell distribution width; U-shaped mortality relationship
-- Resting HR (bpm) — morning supine, before caffeine
+**Cardiovascular: 20%**
+- ApoB (mg/dL): preferred over LDL-C; captures atherogenic particle burden directly
+- Systolic BP (mmHg): tiered scoring with thresholds at 120 and 130
+- RDW (%): red cell distribution width; U-shaped mortality relationship
+- Resting HR (bpm): morning supine, before caffeine
 
-**Metabolic — 20%**
-- VAT (cm²) — visceral adipose tissue from DEXA; more metabolically relevant than total body fat
-- HbA1c (%) — U-shaped scoring; values below 5.0% mildly penalized
-- Fasting glucose (mg/dL) — optional; blends 70/30 with HbA1c when present
-- Triglycerides (mg/dL) — fasting preferred
+**Metabolic: 20%**
+- VAT (cm²): visceral adipose tissue from DEXA; more metabolically relevant than total body fat
+- HbA1c (%): U-shaped scoring; values below 5.0% mildly penalized
+- Fasting glucose (mg/dL): optional; blends 70/30 with HbA1c when present
+- Triglycerides (mg/dL): fasting preferred
 - HDL-C (mg/dL)
 
-**Sleep / Recovery — 12%**
-- Sleep Regularity Index (0–100) — consistency of sleep/wake timing; 30-day rolling
-- Sleep duration (hours) — asymmetric U-shape; right tail penalty shallower than left
-- HRV RMSSD (ms) — morning supine or overnight average; absolute thresholds (declines naturally with age by design)
-- Sleep efficiency (%) — time asleep / time in bed
+**Sleep / Recovery: 12%**
+- Sleep Regularity Index (0–100): consistency of sleep/wake timing; 30-day rolling
+- Sleep duration (hours): asymmetric U-shape; right tail penalty shallower than left
+- HRV RMSSD (ms): morning supine or overnight average; absolute thresholds (declines naturally with age by design)
+- Sleep efficiency (%): time asleep / time in bed
 
-**Inflammation — 12%**
-- hs-CRP (mg/L) — high-sensitivity required; standard CRP insufficient for optimization
-- Homocysteine (μmol/L) — fasting; must be requested specifically
+**Inflammation: 12%**
+- hs-CRP (mg/L): high-sensitivity required; standard CRP insufficient for optimization
+- Homocysteine (μmol/L): fasting; must be requested specifically
 
-**Renal / Organ — 6%**
-- Cystatin C (mg/L) — stronger predictor than creatinine; must be requested specifically
-- eGFR (mL/min/1.73m²) — CKD-EPI 2021 combined equation preferred
+**Renal / Organ: 6%**
+- Cystatin C (mg/L): stronger predictor than creatinine; must be requested specifically
+- eGFR (mL/min/1.73m²): CKD-EPI 2021 combined equation preferred
 - Albumin (g/dL)
 
-**Hormonal — 5%**
-- TSH (mIU/L) — optimal window 1.9–2.9 mIU/L; standard clinical range too broad for vitality optimization
-- Free T4 (ng/dL) — free fraction required; total T4 not equivalent
+**Hormonal: 5%**
+- TSH (mIU/L): optimal window 1.9–2.9 mIU/L; standard clinical range too broad for vitality optimization
+- Free T4 (ng/dL): free fraction required; total T4 not equivalent
 
 Skewed biomarkers (ApoB, VAT, triglycerides, hs-CRP, homocysteine, cystatin C) are log-transformed before scoring. Four multiplicative interaction penalties apply when co-occurring risk conditions are detected (metabolic syndrome cluster, inflammation plus atherogenic lipids, elevated RDW, poor fitness with high CVD risk).
 
