@@ -44,7 +44,7 @@ One file per test date. If a blood panel was drawn on March 1st and a DEXA scan 
 - **Omit keys you cannot confidently extract.** Do not guess or estimate. A missing key falls back to a population default, which is better than a wrong value.
 - If a document gives units different from the contract below, convert before writing.
 - Add a YAML comment at the top of each file noting the source document(s) and any relevant context (fasting status, lab name, device used for sleep/HRV).
-- Use `null` for `fasting_glucose_mg_dl` unless the result was explicitly a fasting draw (8+ hours).
+- Use `null` for `fasting_glucose_mg_dl` unless the result was explicitly a fasting draw (8+ hours). **Function Health draws are always fasting — always include `fasting_glucose_mg_dl` when the source is Function Health.**
 - For sleep and HRV values derived from a wearable, note the device and method in a comment and use a 30-day rolling average, not a single-night reading.
 
 ### Example file header
@@ -117,8 +117,8 @@ Overnight minimum from a validated wearable (Oura Ring preferred — captures tr
 **hba1c_percent** — %
 NGSP-standardized HbA1c. In standard panels. Optimal zone 5.0–5.4% (mortality nadir at 5.38%, JCEM 2019, n=15,869). Values below 5.0% are mildly penalized — in athletes this often reflects faster red blood cell turnover rather than true glycemic benefit. Score 100 at 5.0–5.4%.
 
-**fasting_glucose_mg_dl** — mg/dL  (optional)
-Only include if drawn after 8+ hours fasting. When present, blends with HbA1c (70/30) to form the glycemic component. If absent, HbA1c alone covers glycemic control. Score 100 at ≤85 mg/dL.
+**fasting_glucose_mg_dl** — mg/dL  (optional, but include when source is Function Health)
+Only include if drawn after 8+ hours fasting. Function Health requires fasting for all blood draws, so `glucose_mg_dl` from a Function Health panel should always be mapped to this key. When present, blends with HbA1c (70/30) to form the glycemic component. If absent, HbA1c alone covers glycemic control. Score 100 at ≤85 mg/dL.
 
 **vat_cm2** — cm²
 Visceral adipose tissue from DEXA (L1–L4 region). Same scan as ALMI. More metabolically relevant than total body fat. Score uses log scale: 100 at ≤100 cm², 0 at ≥300 cm².
