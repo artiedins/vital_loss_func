@@ -23,8 +23,6 @@ DOMAIN_WEIGHTS = {
     "hormonal": 0.05,
 }
 
-# Used only when a key never appears in any dated results file.
-# Represents a health-conscious but non-elite adult baseline.
 DEFAULTS = {
     "vo2_max_ml_kg_min": 40.0,
     "grip_strength_kg": 46.0,
@@ -36,7 +34,7 @@ DEFAULTS = {
     "rdw_percent": 13.2,
     "resting_hr_bpm": 62.0,
     "hba1c_percent": 5.4,
-    "fasting_glucose_mg_dl": None,  # null — only used when explicitly measured fasting
+    "fasting_glucose_mg_dl": None,
     "vat_cm2": 110.0,
     "triglycerides_mg_dl": 100.0,
     "hdl_c_mg_dl": 52.0,
@@ -46,7 +44,13 @@ DEFAULTS = {
     "sleep_efficiency_percent": 82.0,
     "hs_crp_mg_l": 1.2,
     "homocysteine_umol_l": 9.0,
-    "omega3_index_percent": 5.5,  # population average; most adults are suboptimal
+    "omega3_index_percent": 5.5,  # fallback: used only when EPA/DHA components absent
+    # ── Function Health omega-3 components (preferred over omega3_index_percent) ──
+    # derive_computed_keys() will compute omega3_index_percent = epa + dha when present.
+    # DPA is excluded per Harris/Von Schacky original definition and Eur J Prev Cardiol 2024.
+    "omega_3_epa_percent_by_wt": None,
+    "omega_3_dha_percent_by_wt": None,
+    "vitamin_d_ng_ml": 28.0,  # population median; most adults are insufficient
     "cystatin_c_mg_l": 0.90,
     "egfr_ml_min_1_73m2": 88.0,
     "albumin_g_dl": 4.1,
@@ -54,17 +58,14 @@ DEFAULTS = {
     "free_t4_ng_dl": 1.1,
 }
 
-# Score = 100 at these values. Used for gradient computation.
-# fasting_glucose excluded — its signal is captured through hba1c blend.
-# Three fitness keys are sex-specific — see get_optimal().
 OPTIMALS = {
-    "vo2_max_ml_kg_min": 52.0,  # male; female = 42.0
-    "grip_strength_kg": 52.0,  # male; female = 36.0
+    "vo2_max_ml_kg_min": 52.0,
+    "grip_strength_kg": 52.0,
     "fev1_percent_predicted": 100.0,
     "heart_rate_recovery_bpm": 30.0,
-    "almi_kg_m2": 8.7,  # male; female = 7.5
-    "apoB_mg_dl": 70.0,  # epidemiological nadir ~70-75 mg/dL (Copenhagen/NHANES)
-    "systolic_bp_mmHg": 112.0,  # midpoint of <115 zone
+    "almi_kg_m2": 8.7,
+    "apoB_mg_dl": 70.0,
+    "systolic_bp_mmHg": 112.0,
     "rdw_percent": 12.5,
     "resting_hr_bpm": 44.0,
     "hba1c_percent": 5.2,
@@ -77,7 +78,8 @@ OPTIMALS = {
     "sleep_efficiency_percent": 90.0,
     "hs_crp_mg_l": 0.3,
     "homocysteine_umol_l": 5.5,
-    "omega3_index_percent": 8.0,  # ≥8% per Eur J Prev Cardiol 2024, n=134,144
+    "omega3_index_percent": 8.0,
+    "vitamin_d_ng_ml": 50.0,  # dose-response plateaus ~50 ng/mL across meta-analyses
     "cystatin_c_mg_l": 0.75,
     "egfr_ml_min_1_73m2": 95.0,
     "albumin_g_dl": 4.4,
@@ -85,9 +87,6 @@ OPTIMALS = {
     "free_t4_ng_dl": 1.15,
 }
 
-# Female-specific thresholds for the three sex-differentiated fitness keys.
-# Sources: ACSM/Cooper Institute/FRIEND database (VO2), EWGSOP2 + NAKO n=200K (grip),
-#          EWGSOP2 / Tromsø Study (ALMI). Males unchanged.
 FEMALE_THRESHOLDS = {
     "vo2_max_ml_kg_min": {"opt": 42.0, "poor": 19.0},
     "grip_strength_kg": {"opt": 36.0, "poor": 16.0},
@@ -115,7 +114,11 @@ TEST_METHODS = {
     "sleep_efficiency_percent": "Oura Ring",
     "hs_crp_mg_l": "Function Health",
     "homocysteine_umol_l": "Function Health",
-    "omega3_index_percent": "Function Health",
+    # omega3_index_percent is derived — not directly entered; enter components below instead
+    "omega3_index_percent": "DERIVED: omega_3_epa_percent_by_wt + omega_3_dha_percent_by_wt",
+    "omega_3_epa_percent_by_wt": "Function Health — OmegaCheck EPA component",
+    "omega_3_dha_percent_by_wt": "Function Health — OmegaCheck DHA component",
+    "vitamin_d_ng_ml": "Function Health — 25(OH)D",
     "cystatin_c_mg_l": "Function Health",
     "egfr_ml_min_1_73m2": "Function Health",
     "albumin_g_dl": "Function Health",
@@ -139,7 +142,7 @@ DOMAIN_COMPONENTS = {
     ],
     "metabolic": [
         ("vat_cm2", 0.35),
-        ("hba1c_percent", 0.25),  # blends with fasting_glucose when available
+        ("hba1c_percent", 0.25),
         ("triglycerides_mg_dl", 0.20),
         ("hdl_c_mg_dl", 0.20),
     ],
@@ -150,9 +153,10 @@ DOMAIN_COMPONENTS = {
         ("sleep_efficiency_percent", 0.10),
     ],
     "inflammation": [
-        ("hs_crp_mg_l", 0.48),  # rescaled from 0.60 to accommodate omega3
-        ("homocysteine_umol_l", 0.32),  # rescaled from 0.40 to accommodate omega3
-        ("omega3_index_percent", 0.20),  # added: Eur J Prev Cardiol 2024, n=134,144
+        ("hs_crp_mg_l", 0.41),  # rescaled from 0.48 to accommodate vitamin_d
+        ("homocysteine_umol_l", 0.27),  # rescaled from 0.32 to accommodate vitamin_d
+        ("omega3_index_percent", 0.17),  # rescaled from 0.20 to accommodate vitamin_d
+        ("vitamin_d_ng_ml", 0.15),  # added: dose-response plateaus ~50 ng/mL; poor=15, opt=50 ng/mL
     ],
     "renal": [
         ("cystatin_c_mg_l", 0.60),
@@ -173,15 +177,15 @@ def clamp(v, lo=0.0, hi=100.0):
     return max(lo, min(hi, v))
 
 
-def _la(v, poor, opt):  # linear ascending: higher = better
+def _la(v, poor, opt):
     return clamp(100.0 * (v - poor) / (opt - poor))
 
 
-def _ld(v, opt, poor):  # linear descending: lower = better
+def _ld(v, opt, poor):
     return clamp(100.0 * (poor - v) / (poor - opt))
 
 
-def _logd(v, opt, poor):  # log descending: lower = better, right-skewed distribution
+def _logd(v, opt, poor):
     lv = math.log(max(v, 0.001))
     return clamp(100.0 * (math.log(poor) - lv) / (math.log(poor) - math.log(opt)))
 
@@ -197,7 +201,6 @@ def score_key(key, value, sex="male"):
         return None
     v = float(value)
 
-    # fitness — three keys are sex-specific
     if key == "vo2_max_ml_kg_min":
         if sex == "female":
             return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
@@ -211,20 +214,14 @@ def score_key(key, value, sex="male"):
             return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
         return _la(v, 7.0, 8.7)
 
-    # fitness — sex-neutral
     if key == "fev1_percent_predicted":
         return _la(v, 60.0, 100.0)
     if key == "heart_rate_recovery_bpm":
         return _la(v, 10.0, 30.0)
 
-    # cardiovascular
     if key == "apoB_mg_dl":
-        # Optimal 70 mg/dL — epidemiological nadir ~70-75 (Copenhagen/NHANES data).
-        # EAS <55 target applies to patients with established CVD, not healthy individuals.
         return _logd(v, 70.0, 150.0)
     if key == "systolic_bp_mmHg":
-        # Three-step curve: observational data show continuous CVD risk reduction to 115 mmHg.
-        # SPRINT did not directly compare <115 vs <120; gradient is real but magnitude is small.
         if v < 115:
             return 100.0
         if v < 120:
@@ -243,10 +240,7 @@ def score_key(key, value, sex="male"):
     if key == "resting_hr_bpm":
         return _ld(v, 48.0, 95.0)
 
-    # metabolic
     if key == "hba1c_percent":
-        # Plateau 5.0-5.4 = 100; optimal 5.2 (JCEM 2019 nadir 5.38%).
-        # Elevated mortality below 5.0% (HR 1.57, meta-analysis 74 studies).
         if 5.0 <= v <= 5.4:
             return 100.0
         if v < 5.0:
@@ -265,7 +259,6 @@ def score_key(key, value, sex="male"):
     if key == "hdl_c_mg_dl":
         return _la(v, 30.0, 65.0)
 
-    # sleep
     if key == "sleep_regularity_index":
         return _la(v, 45.0, 85.0)
     if key == "sleep_duration_hours":
@@ -273,24 +266,24 @@ def score_key(key, value, sex="male"):
             return 100.0
         if v < 6.5:
             return clamp(100.0 - (6.5 - v) * 100.0 / 2.0)
-        return clamp(100.0 - (v - 8.0) * 30.0 / 1.5)  # shallow right tail: athletes recover longer
+        return clamp(100.0 - (v - 8.0) * 30.0 / 1.5)
     if key == "hrv_ms":
         return _la(v, 18.0, 60.0)
     if key == "sleep_efficiency_percent":
         return _la(v, 65.0, 87.0)
 
-    # inflammation
     if key == "hs_crp_mg_l":
         return _logd(v, 0.5, 15.0)
     if key == "homocysteine_umol_l":
         return _logd(v, 6.5, 25.0)
     if key == "omega3_index_percent":
-        # Linear ascending: poor = 4% (high CV risk), optimal = 8%.
-        # Eur J Prev Cardiol 2024, n=134,144: 8% CVD mortality reduction at ≥8%.
-        # Values >8% are not penalized (clamped at 100).
         return _la(v, 4.0, 8.0)
+    if key == "vitamin_d_ng_ml":
+        # Linear ascending: poor=15 ng/mL (clear mortality risk zone), optimal=50 ng/mL
+        # (dose-response plateaus ~50 ng/mL across meta-analyses; values >50 not penalized).
+        # Source: Garland et al. meta-analysis; 2024 dose-response review (PMC12029153).
+        return _la(v, 15.0, 50.0)
 
-    # renal
     if key == "cystatin_c_mg_l":
         return _logd(v, 0.85, 2.0)
     if key == "egfr_ml_min_1_73m2":
@@ -298,7 +291,6 @@ def score_key(key, value, sex="male"):
     if key == "albumin_g_dl":
         return _la(v, 3.0, 4.2)
 
-    # hormonal
     if key == "tsh_miu_l":
         if 1.9 <= v <= 2.9:
             return 100.0
@@ -367,6 +359,29 @@ def compute_loss(values, sex):
     return -math.log(adjusted / 100.0), adjusted, mods
 
 
+# ── omega-3 derivation ─────────────────────────────────────────────────────────
+
+
+def derive_computed_keys(values):
+    """
+    Compute omega3_index_percent from raw Function Health OmegaCheck components
+    when EPA and DHA are both present.
+
+    Definition: Omega-3 Index = EPA + DHA as % of total fatty acids (Harris/Von Schacky).
+    DPA is intentionally excluded — it was not independently associated with CV events
+    in the founding studies and is not included in the Eur J Prev Cardiol 2024 threshold.
+
+    If components are absent, omega3_index_percent is left unchanged (falls back to
+    direct measurement or DEFAULTS).
+    """
+    epa = values.get("omega_3_epa_percent_by_wt")
+    dha = values.get("omega_3_dha_percent_by_wt")
+    if epa is not None and dha is not None:
+        values["omega3_index_percent"] = epa + dha
+        values["_omega3_derived"] = True
+    return values
+
+
 # ── data loading and nearest-neighbor fill ─────────────────────────────────────
 
 
@@ -406,7 +421,6 @@ def load_dated_files():
 
 
 def load_sex(raw_paths):
-    # Read sex from any YAML file that specifies it; default to male.
     for f in raw_paths:
         with open(f) as fp:
             raw = yaml.safe_load(fp) or {}
@@ -416,7 +430,6 @@ def load_sex(raw_paths):
 
 
 def fill_for_date(target, dated_files):
-    # for each key, use the measurement nearest in time; fall back to default if never measured
     result = dict(DEFAULTS)
     for key in DEFAULTS:
         best_dist, best_val = float("inf"), None
@@ -458,6 +471,11 @@ def compute_gradients(values, current_loss, measured, sex):
         opt = get_optimal(key, sex)
         test = dict(values)
         test[key] = opt
+        # if adjusting omega3_index_percent directly, clear components so
+        # derive_computed_keys() doesn't overwrite the gradient test value
+        if key == "omega3_index_percent":
+            test.pop("omega_3_epa_percent_by_wt", None)
+            test.pop("omega_3_dha_percent_by_wt", None)
         new_loss, _, _ = compute_loss(test, sex)
         delta = current_loss - new_loss
         if delta > 0.001:
@@ -485,14 +503,13 @@ def main():
 
     measured = measured_keys_ever(dated_files)
 
-    # compute loss for every dated file
     timeline = []
     for dt, _ in dated_files:
         vals = fill_for_date(dt, dated_files)
+        vals = derive_computed_keys(vals)  # ← compute EPA+DHA index
         loss, comp, mods = compute_loss(vals, sex)
         timeline.append((dt, loss, comp, mods, vals))
 
-    # primary output: one line per date, machine-readable
     for dt, loss, _, _, _ in timeline:
         print(f"{dt.strftime('%Y_%m_%d')} {loss:.4f}")
 
@@ -502,8 +519,7 @@ def main():
 
     latest_dt, latest_loss, latest_comp, latest_mods, latest_vals = timeline[-1]
 
-    # data coverage
-    scoreable = [k for k in DEFAULTS if k != "fasting_glucose_mg_dl"]
+    scoreable = [k for k in DEFAULTS if k != "fasting_glucose_mg_dl" and not k.startswith("omega_3_") or k == "omega3_index_percent"]
     never = [k for k in scoreable if k not in measured]
     print(f"DATA COVERAGE  (as of {latest_dt}  sex={sex})")
     print(f"  measured : {len(measured)} / {len(scoreable)}")
@@ -511,7 +527,7 @@ def main():
         print(f"  defaults : {', '.join(never)}")
     print()
 
-    # latest values per domain
+    derived_note = " (derived: EPA+DHA)" if latest_vals.get("_omega3_derived") else " (direct or default)"
     print(f"LATEST VALUES  composite={latest_comp:.1f}/100  loss={latest_loss:.4f}")
     print(f"  {'key':<32} {'value':>8}  {'score':>6}  source")
     print(f"  {'─'*32} {'─'*8}  {'─'*6}  {'─'*22}")
@@ -524,10 +540,10 @@ def main():
             vs = f"{val:.2f}" if isinstance(val, (int, float)) and val is not None else "—"
             ss = f"{sc:.1f}" if sc is not None else "—"
             flag = "  ← LOW" if sc is not None and sc < 60 else ""
-            print(f"  {key:<32} {vs:>8}  {ss:>6}  {src}{flag}")
+            extra = derived_note if key == "omega3_index_percent" else ""
+            print(f"  {key:<32} {vs:>8}  {ss:>6}  {src}{extra}{flag}")
     print()
 
-    # interaction penalties
     if latest_mods:
         print("INTERACTION PENALTIES")
         for name, val in latest_mods:
@@ -536,7 +552,6 @@ def main():
         print("INTERACTION PENALTIES  none active")
     print()
 
-    # gradient table
     grads = compute_gradients(latest_vals, latest_loss, measured, sex)
     print("GRADIENT ANALYSIS  (loss reduction if key reaches optimal)")
     print(f"  {'#':<3} {'key':<32} {'current':>8} {'optimal':>8} {'score':>6} {'Δloss':>7}  source")
@@ -547,7 +562,6 @@ def main():
         print(f"  {i:<3} {key:<32} {cs:>8} {opt:>8.2f} {ss:>6} {delta:>7.4f}  {src}")
     print()
 
-    # priority targets split by source
     default_grads = [(k, c, o, s, d) for k, c, o, s, d, src in grads if src == "DEFAULT"]
     measured_grads = [(k, c, o, s, d) for k, c, o, s, d, src in grads if src != "DEFAULT"]
 

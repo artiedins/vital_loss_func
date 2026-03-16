@@ -102,6 +102,8 @@ The only domain measuring actual physiological capacity rather than risk proxies
 **Inflammation: 12%**
 - hs-CRP (mg/L): high-sensitivity required; standard CRP insufficient for optimization
 - Homocysteine (μmol/L): fasting; must be requested specifically
+- Omega-3 Index (%): EPA + DHA as % of total fatty acids; derived automatically from OmegaCheck components — do not enter directly
+- Vitamin D (ng/mL): 25(OH)D; steep mortality gradient from 15–30 ng/mL, plateaus above ~50 ng/mL
 
 **Renal / Organ: 6%**
 - Cystatin C (mg/L): stronger predictor than creatinine; must be requested specifically
