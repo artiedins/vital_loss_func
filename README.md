@@ -10,7 +10,7 @@ So instead of asking an agent what your bloodwork means, we encoded the latest r
 
 The agent reads your raw health documents, maps them to a well-specified schema, runs the script, and gets back a prioritized gradient table showing exactly which inputs, if improved, would reduce the loss most. The research is already baked into the function, so the agent doesn't need to know the underlying medicine. It just needs to help you descend the gradient.
 
-This works with any capable LLM. Even models with outdated medical knowledge can translate a lab PDF into YAML and interpret "move this value toward the target to reduce loss." The research injection happens at design time, not inference time.
+This works with any capable LLM. Even models with outdated medical knowledge can translate a lab PDF into YAML and interpret "move this value toward the target to reduce loss." The research injection happens through updateable python code, not in LLM training data.
 
 Track the loss curve over months. Down is good. Flat with age is acceptable. Up is a signal.
 
