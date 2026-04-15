@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
-# Vitality Loss Function — compute_loss.py
+# Vitality Loss Function -- compute_loss.py
 #
 # loss = -log(composite/100). Lower is better. Zero is perfect.
 # Down over time is good. Flat with aging is acceptable. Up is a signal.
 #
 # See AGENTS.md for data preparation, key definitions, and interpretation.
+
+# Code style:
+# - No type hinting
+# - No doc strings
+# - No triple quoted multi-line strings
+# - No comments with repeated characters for visual page breaks like # ---
+# - No non-ascii characters
+# - No command line argument processing
+# - No global variables unless making them local increases complexity
+# - Yes strategic inline comments enhancing rapid code comprehension by real humans
+# - Yes if __name__ == "__main__": main()
 
 import yaml, math
 from pathlib import Path
@@ -34,7 +45,7 @@ DEFAULTS = {
     "rdw_percent": 13.2,
     "resting_hr_bpm": 62.0,
     "hba1c_percent": 5.4,
-    "fasting_glucose_mg_dl": None,
+    "glucose_mg_dl": None,  # optional blend with hba1c; Function Health draws are always fasting
     "vat_cm2": 110.0,
     "triglycerides_mg_dl": 100.0,
     "hdl_c_mg_dl": 52.0,
@@ -44,15 +55,15 @@ DEFAULTS = {
     "sleep_efficiency_percent": 82.0,
     "hs_crp_mg_l": 1.2,
     "homocysteine_umol_l": 9.0,
-    "omega3_index_percent": 5.5,  # fallback: used only when EPA/DHA components absent
-    # ── Function Health omega-3 components (preferred over omega3_index_percent) ──
-    # derive_computed_keys() will compute omega3_index_percent = epa + dha when present.
-    # DPA is excluded per Harris/Von Schacky original definition and Eur J Prev Cardiol 2024.
-    "omega_3_epa_percent_by_wt": None,
-    "omega_3_dha_percent_by_wt": None,
-    "vitamin_d_ng_ml": 28.0,  # population median; most adults are insufficient
+    # omega3_1.47x_epa_dha_index_percent: user multiplies FunctionHealth whole-blood
+    # EPA+DHA (not DPA) by 1.47 before entering. Converts whole-blood % to RBC-membrane
+    # equivalent so thresholds match the Harris/Von Schacky Omega-3 Index definition
+    # (Prev Med 2004; validated cutpoints confirmed in 10-cohort meta-analysis,
+    # Atherosclerosis 2017). Conversion factor from Stark et al. Prostaglandins 2016.
+    "omega3_1.47x_epa_dha_index_percent": 5.5,  # population default ~3.7% whole-blood * 1.47
     "cystatin_c_mg_l": 0.90,
-    "egfr_ml_min_1_73m2": 88.0,
+    "egfr_ml_min_1_73m2": None,  # cystatin-C or combined CKD-EPI 2021 -- preferred, costs extra
+    "egfr_cr_ml_min_1_73m2": 88.0,  # creatinine-only CKD-EPI -- free twice/year from Function Health
     "albumin_g_dl": 4.1,
     "tsh_miu_l": 2.5,
     "free_t4_ng_dl": 1.1,
@@ -69,6 +80,7 @@ OPTIMALS = {
     "rdw_percent": 12.5,
     "resting_hr_bpm": 44.0,
     "hba1c_percent": 5.2,
+    "glucose_mg_dl": 82.0,  # 80-84 mg/dL nadir for T2D risk in 12.4M-person cohort
     "vat_cm2": 80.0,
     "triglycerides_mg_dl": 70.0,
     "hdl_c_mg_dl": 72.0,
@@ -78,8 +90,7 @@ OPTIMALS = {
     "sleep_efficiency_percent": 90.0,
     "hs_crp_mg_l": 0.3,
     "homocysteine_umol_l": 5.5,
-    "omega3_index_percent": 8.0,
-    "vitamin_d_ng_ml": 50.0,  # dose-response plateaus ~50 ng/mL across meta-analyses
+    "omega3_1.47x_epa_dha_index_percent": 8.0,  # RBC-equivalent >= 8% is low-risk zone (Harris/Von Schacky)
     "cystatin_c_mg_l": 0.75,
     "egfr_ml_min_1_73m2": 95.0,
     "albumin_g_dl": 4.4,
@@ -104,7 +115,7 @@ TEST_METHODS = {
     "rdw_percent": "Function Health",
     "resting_hr_bpm": "Oura Ring",
     "hba1c_percent": "Function Health",
-    "fasting_glucose_mg_dl": "Function Health",
+    "glucose_mg_dl": "Function Health (always fasting -- map glucose_mg_dl directly)",
     "vat_cm2": "DEXA scan",
     "triglycerides_mg_dl": "Function Health",
     "hdl_c_mg_dl": "Function Health",
@@ -114,13 +125,10 @@ TEST_METHODS = {
     "sleep_efficiency_percent": "Oura Ring",
     "hs_crp_mg_l": "Function Health",
     "homocysteine_umol_l": "Function Health",
-    # omega3_index_percent is derived — not directly entered; enter components below instead
-    "omega3_index_percent": "DERIVED: omega_3_epa_percent_by_wt + omega_3_dha_percent_by_wt",
-    "omega_3_epa_percent_by_wt": "Function Health — OmegaCheck EPA component",
-    "omega_3_dha_percent_by_wt": "Function Health — OmegaCheck DHA component",
-    "vitamin_d_ng_ml": "Function Health — 25(OH)D",
-    "cystatin_c_mg_l": "Function Health",
-    "egfr_ml_min_1_73m2": "Function Health",
+    "omega3_1.47x_epa_dha_index_percent": "Function Health OmegaCheck: take (EPA% + DHA%) and multiply by 1.47 before entering -- do not include DPA",
+    "cystatin_c_mg_l": "Function Health (add-on panel)",
+    "egfr_ml_min_1_73m2": "Function Health (add-on panel -- cystatin-C or combined CKD-EPI 2021)",
+    "egfr_cr_ml_min_1_73m2": "Function Health (standard panel -- creatinine CKD-EPI, included free twice/year)",
     "albumin_g_dl": "Function Health",
     "tsh_miu_l": "Function Health",
     "free_t4_ng_dl": "Function Health",
@@ -152,11 +160,13 @@ DOMAIN_COMPONENTS = {
         ("hrv_ms", 0.25),
         ("sleep_efficiency_percent", 0.10),
     ],
+    # inflammation weights redistributed after vitamin_d removal:
+    # causal MR evidence for vitamin_d on mortality is weak/null (multiple large UK Biobank MR studies);
+    # omega3 weight raised to 0.25 reflecting strong Omega-3 Index CHD mortality evidence
     "inflammation": [
-        ("hs_crp_mg_l", 0.41),  # rescaled from 0.48 to accommodate vitamin_d
-        ("homocysteine_umol_l", 0.27),  # rescaled from 0.32 to accommodate vitamin_d
-        ("omega3_index_percent", 0.17),  # rescaled from 0.20 to accommodate vitamin_d
-        ("vitamin_d_ng_ml", 0.15),  # added: dose-response plateaus ~50 ng/mL; poor=15, opt=50 ng/mL
+        ("hs_crp_mg_l", 0.45),
+        ("homocysteine_umol_l", 0.30),
+        ("omega3_1.47x_epa_dha_index_percent", 0.25),
     ],
     "renal": [
         ("cystatin_c_mg_l", 0.60),
@@ -170,7 +180,7 @@ DOMAIN_COMPONENTS = {
 }
 
 
-# ── scoring primitives ─────────────────────────────────────────────────────────
+# scoring primitives
 
 
 def clamp(v, lo=0.0, hi=100.0):
@@ -178,14 +188,17 @@ def clamp(v, lo=0.0, hi=100.0):
 
 
 def _la(v, poor, opt):
+    # linear ascending: poor -> 0, opt -> 100
     return clamp(100.0 * (v - poor) / (opt - poor))
 
 
 def _ld(v, opt, poor):
+    # linear descending: opt -> 100, poor -> 0
     return clamp(100.0 * (poor - v) / (poor - opt))
 
 
 def _logd(v, opt, poor):
+    # log-scale descending: used for skewed biomarkers (ApoB, VAT, etc.)
     lv = math.log(max(v, 0.001))
     return clamp(100.0 * (math.log(poor) - lv) / (math.log(poor) - math.log(opt)))
 
@@ -250,7 +263,7 @@ def score_key(key, value, sex="male"):
         if v <= 6.5:
             return clamp(75.0 - (v - 5.7) * 50.0 / 0.8)
         return clamp(25.0 - (v - 6.5) * 25.0 / 1.5)
-    if key == "fasting_glucose_mg_dl":
+    if key == "glucose_mg_dl":
         return _ld(v, 85.0, 110.0)
     if key == "vat_cm2":
         return _logd(v, 100.0, 300.0)
@@ -276,13 +289,11 @@ def score_key(key, value, sex="male"):
         return _logd(v, 0.5, 15.0)
     if key == "homocysteine_umol_l":
         return _logd(v, 6.5, 25.0)
-    if key == "omega3_index_percent":
+    if key == "omega3_1.47x_epa_dha_index_percent":
+        # RBC-equivalent Omega-3 Index: >= 8% low risk, <= 4% high risk (Harris/Von Schacky 2004;
+        # cutpoints confirmed in 10-cohort meta-analysis, Atherosclerosis 2017).
+        # Input must already be whole-blood EPA+DHA multiplied by 1.47 by the user.
         return _la(v, 4.0, 8.0)
-    if key == "vitamin_d_ng_ml":
-        # Linear ascending: poor=15 ng/mL (clear mortality risk zone), optimal=50 ng/mL
-        # (dose-response plateaus ~50 ng/mL across meta-analyses; values >50 not penalized).
-        # Source: Garland et al. meta-analysis; 2024 dose-response review (PMC12029153).
-        return _la(v, 15.0, 50.0)
 
     if key == "cystatin_c_mg_l":
         return _logd(v, 0.85, 2.0)
@@ -307,7 +318,7 @@ def score_key(key, value, sex="male"):
     return None
 
 
-# ── composite and loss ─────────────────────────────────────────────────────────
+# composite and loss
 
 
 def domain_score(domain, values, sex):
@@ -315,9 +326,9 @@ def domain_score(domain, values, sex):
     for key, w in DOMAIN_COMPONENTS[domain]:
         if key == "hba1c_percent" and domain == "metabolic":
             s1 = score_key("hba1c_percent", values.get("hba1c_percent"), sex)
-            fg = values.get("fasting_glucose_mg_dl")
+            fg = values.get("glucose_mg_dl")
             if fg is not None and s1 is not None:
-                s2 = score_key("fasting_glucose_mg_dl", fg, sex)
+                s2 = score_key("glucose_mg_dl", fg, sex)
                 cs = 0.70 * s1 + 0.30 * (s2 if s2 is not None else s1)
             else:
                 cs = s1
@@ -359,30 +370,21 @@ def compute_loss(values, sex):
     return -math.log(adjusted / 100.0), adjusted, mods
 
 
-# ── omega-3 derivation ─────────────────────────────────────────────────────────
+# derived and fallback keys
 
 
 def derive_computed_keys(values):
-    """
-    Compute omega3_index_percent from raw Function Health OmegaCheck components
-    when EPA and DHA are both present.
-
-    Definition: Omega-3 Index = EPA + DHA as % of total fatty acids (Harris/Von Schacky).
-    DPA is intentionally excluded — it was not independently associated with CV events
-    in the founding studies and is not included in the Eur J Prev Cardiol 2024 threshold.
-
-    If components are absent, omega3_index_percent is left unchanged (falls back to
-    direct measurement or DEFAULTS).
-    """
-    epa = values.get("omega_3_epa_percent_by_wt")
-    dha = values.get("omega_3_dha_percent_by_wt")
-    if epa is not None and dha is not None:
-        values["omega3_index_percent"] = epa + dha
-        values["_omega3_derived"] = True
+    # silent eGFR fallback: use creatinine-based eGFR when cystatin-based is absent.
+    # cystatin-based (egfr_ml_min_1_73m2) is preferred -- unaffected by muscle mass,
+    # stronger predictor of mortality and CKD progression. When only creatinine eGFR
+    # is available it is promoted to fill the scoring slot with a flag for display.
+    if values.get("egfr_ml_min_1_73m2") is None and values.get("egfr_cr_ml_min_1_73m2") is not None:
+        values["egfr_ml_min_1_73m2"] = values["egfr_cr_ml_min_1_73m2"]
+        values["_egfr_from_creatinine"] = True
     return values
 
 
-# ── data loading and nearest-neighbor fill ─────────────────────────────────────
+# data loading and nearest-neighbor fill
 
 
 def load_dated_files():
@@ -454,15 +456,20 @@ def measured_keys_ever(dated_files):
 
 def key_source(key, target, dated_files):
     best_dist, best_date = float("inf"), None
-    for d, vals in dated_files:
-        if key in vals and vals[key] is not None:
-            dist = abs((target - d).days)
-            if dist < best_dist:
-                best_dist, best_date = dist, d
+    # for egfr, also accept the creatinine key as a source when cystatin-based not present
+    check_keys = [key]
+    if key == "egfr_ml_min_1_73m2":
+        check_keys.append("egfr_cr_ml_min_1_73m2")
+    for k in check_keys:
+        for d, vals in dated_files:
+            if k in vals and vals[k] is not None:
+                dist = abs((target - d).days)
+                if dist < best_dist:
+                    best_dist, best_date = dist, d
     return f"measured:{best_date}" if best_date else "DEFAULT"
 
 
-# ── gradient analysis ──────────────────────────────────────────────────────────
+# gradient analysis
 
 
 def compute_gradients(values, current_loss, measured, sex):
@@ -471,11 +478,6 @@ def compute_gradients(values, current_loss, measured, sex):
         opt = get_optimal(key, sex)
         test = dict(values)
         test[key] = opt
-        # if adjusting omega3_index_percent directly, clear components so
-        # derive_computed_keys() doesn't overwrite the gradient test value
-        if key == "omega3_index_percent":
-            test.pop("omega_3_epa_percent_by_wt", None)
-            test.pop("omega_3_dha_percent_by_wt", None)
         new_loss, _, _ = compute_loss(test, sex)
         delta = current_loss - new_loss
         if delta > 0.001:
@@ -485,7 +487,7 @@ def compute_gradients(values, current_loss, measured, sex):
     return sorted(results, key=lambda x: -x[4])
 
 
-# ── output ─────────────────────────────────────────────────────────────────────
+# output
 
 
 def main():
@@ -499,14 +501,14 @@ def main():
         return
 
     if using_sample:
-        print("# Using sample_data/ for demonstration — add files to dated_test_results/ for real results")
+        print("# Using sample_data/ for demonstration -- add files to dated_test_results/ for real results")
 
     measured = measured_keys_ever(dated_files)
 
     timeline = []
     for dt, _ in dated_files:
         vals = fill_for_date(dt, dated_files)
-        vals = derive_computed_keys(vals)  # ← compute EPA+DHA index
+        vals = derive_computed_keys(vals)
         loss, comp, mods = compute_loss(vals, sex)
         timeline.append((dt, loss, comp, mods, vals))
 
@@ -519,7 +521,10 @@ def main():
 
     latest_dt, latest_loss, latest_comp, latest_mods, latest_vals = timeline[-1]
 
-    scoreable = [k for k in DEFAULTS if k != "fasting_glucose_mg_dl" and not k.startswith("omega_3_") or k == "omega3_index_percent"]
+    # keys excluded from coverage count: glucose_mg_dl (optional hba1c blend),
+    # egfr_cr_ml_min_1_73m2 (fallback input, not an independent scored slot)
+    non_scoreable = {"glucose_mg_dl", "egfr_cr_ml_min_1_73m2"}
+    scoreable = [k for k in DEFAULTS if k not in non_scoreable]
     never = [k for k in scoreable if k not in measured]
     print(f"DATA COVERAGE  (as of {latest_dt}  sex={sex})")
     print(f"  measured : {len(measured)} / {len(scoreable)}")
@@ -527,39 +532,40 @@ def main():
         print(f"  defaults : {', '.join(never)}")
     print()
 
-    derived_note = " (derived: EPA+DHA)" if latest_vals.get("_omega3_derived") else " (direct or default)"
     print(f"LATEST VALUES  composite={latest_comp:.1f}/100  loss={latest_loss:.4f}")
-    print(f"  {'key':<32} {'value':>8}  {'score':>6}  source")
-    print(f"  {'─'*32} {'─'*8}  {'─'*6}  {'─'*22}")
+    print(f"  {'key':<38} {'value':>8}  {'score':>6}  source")
+    print(f"  {'key':<38} {'value':>8}  {'score':>6}  {'source'}")
+    print(f"  {'-'*38} {'-'*8}  {'-'*6}  {'-'*22}")
     for domain, components in DOMAIN_COMPONENTS.items():
         print(f"  [{domain}  weight={DOMAIN_WEIGHTS[domain]:.0%}]")
         for key, _ in components:
             val = latest_vals.get(key)
             sc = score_key(key, val, sex)
             src = key_source(key, latest_dt, dated_files)
-            vs = f"{val:.2f}" if isinstance(val, (int, float)) and val is not None else "—"
-            ss = f"{sc:.1f}" if sc is not None else "—"
-            flag = "  ← LOW" if sc is not None and sc < 60 else ""
-            extra = derived_note if key == "omega3_index_percent" else ""
-            print(f"  {key:<32} {vs:>8}  {ss:>6}  {src}{extra}{flag}")
+            vs = f"{val:.2f}" if isinstance(val, (int, float)) and val is not None else "-"
+            ss = f"{sc:.1f}" if sc is not None else "-"
+            flag = "  (LOW)" if sc is not None and sc < 60 else ""
+            # note when eGFR slot is filled by creatinine fallback
+            creat_note = "  (creatinine source; muscle-mass upward bias possible)" if (key == "egfr_ml_min_1_73m2" and latest_vals.get("_egfr_from_creatinine")) else ""
+            print(f"  {key:<38} {vs:>8}  {ss:>6}  {src}{flag}{creat_note}")
     print()
 
     if latest_mods:
         print("INTERACTION PENALTIES")
         for name, val in latest_mods:
-            print(f"  ✗ {name}: {(1 - val) * 100:.0f}% composite reduction")
+            print(f"  ACTIVE {name}: {(1 - val) * 100:.0f}% composite reduction")
     else:
         print("INTERACTION PENALTIES  none active")
     print()
 
     grads = compute_gradients(latest_vals, latest_loss, measured, sex)
     print("GRADIENT ANALYSIS  (loss reduction if key reaches optimal)")
-    print(f"  {'#':<3} {'key':<32} {'current':>8} {'optimal':>8} {'score':>6} {'Δloss':>7}  source")
-    print(f"  {'─'*3} {'─'*32} {'─'*8} {'─'*8} {'─'*6} {'─'*7}  {'─'*10}")
+    print(f"  {'#':<3} {'key':<38} {'current':>8} {'optimal':>8} {'score':>6} {'delta_loss':>10}  source")
+    print(f"  {'-'*3} {'-'*38} {'-'*8} {'-'*8} {'-'*6} {'-'*10}  {'-'*10}")
     for i, (key, cur, opt, sc, delta, src) in enumerate(grads[:15], 1):
-        cs = f"{cur:.2f}" if cur is not None else "—"
-        ss = f"{sc:.1f}" if sc is not None else "—"
-        print(f"  {i:<3} {key:<32} {cs:>8} {opt:>8.2f} {ss:>6} {delta:>7.4f}  {src}")
+        cs = f"{cur:.2f}" if cur is not None else "-"
+        ss = f"{sc:.1f}" if sc is not None else "-"
+        print(f"  {i:<3} {key:<38} {cs:>8} {opt:>8.2f} {ss:>6} {delta:>10.4f}  {src}")
     print()
 
     default_grads = [(k, c, o, s, d) for k, c, o, s, d, src in grads if src == "DEFAULT"]
@@ -567,16 +573,16 @@ def main():
 
     print("PRIORITY TARGETS")
     if default_grads:
-        print("  A. GET THESE TESTS  (high-gradient keys on defaults — real values may move loss significantly)")
+        print("  A. GET THESE TESTS  (high-gradient keys on defaults -- real values may move loss significantly)")
         for key, cur, opt, sc, delta in default_grads[:5]:
             method = TEST_METHODS.get(key, "see AGENTS.md")
-            print(f"     Δloss={delta:.4f}  {key:<32}  {method}")
+            print(f"     delta_loss={delta:.4f}  {key:<38}  {method}")
     if measured_grads:
         print()
-        print("  B. INTERVENTION TARGETS  (measured, suboptimal — these are your gradient descent steps)")
+        print("  B. INTERVENTION TARGETS  (measured, suboptimal -- these are your gradient descent steps)")
         for key, cur, opt, sc, delta in measured_grads[:5]:
             cs = f"{cur:.2f}" if cur is not None else "?"
-            print(f"     Δloss={delta:.4f}  {key:<32}  current={cs}  target={opt:.2f}  score={sc:.1f}/100")
+            print(f"     delta_loss={delta:.4f}  {key:<38}  current={cs}  target={opt:.2f}  score={sc:.1f}/100")
 
     print()
     print("---")
