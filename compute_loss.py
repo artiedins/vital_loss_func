@@ -45,7 +45,7 @@ DEFAULTS = {
     "rdw_percent": 13.2,
     "resting_hr_bpm": 62.0,
     "hba1c_percent": 5.4,
-    "glucose_mg_dl": None,  # optional blend with hba1c; Function Health draws are always fasting
+    "glucose_mg_dl": None,
     "vat_cm2": 110.0,
     "triglycerides_mg_dl": 100.0,
     "hdl_c_mg_dl": 52.0,
@@ -55,15 +55,10 @@ DEFAULTS = {
     "sleep_efficiency_percent": 82.0,
     "hs_crp_mg_l": 1.2,
     "homocysteine_umol_l": 9.0,
-    # omega3_1.47x_epa_dha_index_percent: user multiplies FunctionHealth whole-blood
-    # EPA+DHA (not DPA) by 1.47 before entering. Converts whole-blood % to RBC-membrane
-    # equivalent so thresholds match the Harris/Von Schacky Omega-3 Index definition
-    # (Prev Med 2004; validated cutpoints confirmed in 10-cohort meta-analysis,
-    # Atherosclerosis 2017). Conversion factor from Stark et al. Prostaglandins 2016.
-    "omega3_1.47x_epa_dha_index_percent": 5.5,  # population default ~3.7% whole-blood * 1.47
+    "omega3_1.47x_epa_dha_index_percent": 5.5,
     "cystatin_c_mg_l": 0.90,
-    "egfr_ml_min_1_73m2": None,  # cystatin-C or combined CKD-EPI 2021 -- preferred, costs extra
-    "egfr_cr_ml_min_1_73m2": 88.0,  # creatinine-only CKD-EPI -- free twice/year from Function Health
+    "egfr_ml_min_1_73m2": None,
+    "egfr_cr_ml_min_1_73m2": 88.0,
     "albumin_g_dl": 4.1,
     "tsh_miu_l": 2.5,
     "free_t4_ng_dl": 1.1,
@@ -80,7 +75,7 @@ OPTIMALS = {
     "rdw_percent": 12.5,
     "resting_hr_bpm": 44.0,
     "hba1c_percent": 5.2,
-    "glucose_mg_dl": 82.0,  # 80-84 mg/dL nadir for T2D risk in 12.4M-person cohort
+    "glucose_mg_dl": 82.0,
     "vat_cm2": 80.0,
     "triglycerides_mg_dl": 70.0,
     "hdl_c_mg_dl": 72.0,
@@ -90,7 +85,7 @@ OPTIMALS = {
     "sleep_efficiency_percent": 90.0,
     "hs_crp_mg_l": 0.3,
     "homocysteine_umol_l": 5.5,
-    "omega3_1.47x_epa_dha_index_percent": 8.0,  # RBC-equivalent >= 8% is low-risk zone (Harris/Von Schacky)
+    "omega3_1.47x_epa_dha_index_percent": 8.0,
     "cystatin_c_mg_l": 0.75,
     "egfr_ml_min_1_73m2": 95.0,
     "albumin_g_dl": 4.4,
@@ -111,11 +106,11 @@ TEST_METHODS = {
     "heart_rate_recovery_bpm": "Lab VO2 max test",
     "almi_kg_m2": "DEXA scan",
     "apoB_mg_dl": "Function Health",
-    "systolic_bp_mmHg": "Validated BP cuff: seated, rested 5 min, average of 3",
+    "systolic_bp_mmHg": "Validated BP cuff",
     "rdw_percent": "Function Health",
     "resting_hr_bpm": "Oura Ring",
     "hba1c_percent": "Function Health",
-    "glucose_mg_dl": "Function Health (always fasting -- map glucose_mg_dl directly)",
+    "glucose_mg_dl": "Function Health",
     "vat_cm2": "DEXA scan",
     "triglycerides_mg_dl": "Function Health",
     "hdl_c_mg_dl": "Function Health",
@@ -125,10 +120,10 @@ TEST_METHODS = {
     "sleep_efficiency_percent": "Oura Ring",
     "hs_crp_mg_l": "Function Health",
     "homocysteine_umol_l": "Function Health",
-    "omega3_1.47x_epa_dha_index_percent": "Function Health OmegaCheck: take (EPA% + DHA%) and multiply by 1.47 before entering -- do not include DPA",
+    "omega3_1.47x_epa_dha_index_percent": "Function Health",
     "cystatin_c_mg_l": "Function Health (add-on panel)",
-    "egfr_ml_min_1_73m2": "Function Health (add-on panel -- cystatin-C or combined CKD-EPI 2021)",
-    "egfr_cr_ml_min_1_73m2": "Function Health (standard panel -- creatinine CKD-EPI, included free twice/year)",
+    "egfr_ml_min_1_73m2": "Function Health (add-on panel)",
+    "egfr_cr_ml_min_1_73m2": "Function Health (standard panel)",
     "albumin_g_dl": "Function Health",
     "tsh_miu_l": "Function Health",
     "free_t4_ng_dl": "Function Health",
@@ -160,9 +155,6 @@ DOMAIN_COMPONENTS = {
         ("hrv_ms", 0.25),
         ("sleep_efficiency_percent", 0.10),
     ],
-    # inflammation weights redistributed after vitamin_d removal:
-    # causal MR evidence for vitamin_d on mortality is weak/null (multiple large UK Biobank MR studies);
-    # omega3 weight raised to 0.25 reflecting strong Omega-3 Index CHD mortality evidence
     "inflammation": [
         ("hs_crp_mg_l", 0.45),
         ("homocysteine_umol_l", 0.30),
@@ -290,9 +282,6 @@ def score_key(key, value, sex="male"):
     if key == "homocysteine_umol_l":
         return _logd(v, 6.5, 25.0)
     if key == "omega3_1.47x_epa_dha_index_percent":
-        # RBC-equivalent Omega-3 Index: >= 8% low risk, <= 4% high risk (Harris/Von Schacky 2004;
-        # cutpoints confirmed in 10-cohort meta-analysis, Atherosclerosis 2017).
-        # Input must already be whole-blood EPA+DHA multiplied by 1.47 by the user.
         return _la(v, 4.0, 8.0)
 
     if key == "cystatin_c_mg_l":
