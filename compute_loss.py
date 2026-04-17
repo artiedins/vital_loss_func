@@ -46,7 +46,7 @@ DEFAULTS = {
     "resting_hr_bpm": 62.0,
     "hba1c_percent": 5.4,
     "glucose_mg_dl": None,
-    "vat_cm2": 110.0,
+    "vat_lbs_x313.7_cm2": 110.0,
     "triglycerides_mg_dl": 100.0,
     "hdl_c_mg_dl": 52.0,
     "sleep_regularity_index": 72.0,
@@ -69,14 +69,14 @@ OPTIMALS = {
     "grip_strength_kg": 52.0,
     "fev1_percent_predicted": 100.0,
     "heart_rate_recovery_bpm": 30.0,
-    "almi_kg_m2": 8.7,
+    "almi_kg_m2": 9.5,  # longevity 75th percentile target; score_key matches
     "apoB_mg_dl": 70.0,
     "systolic_bp_mmHg": 112.0,
     "rdw_percent": 12.5,
     "resting_hr_bpm": 44.0,
     "hba1c_percent": 5.2,
     "glucose_mg_dl": 82.0,
-    "vat_cm2": 80.0,
+    "vat_lbs_x313.7_cm2": 80.0,
     "triglycerides_mg_dl": 70.0,
     "hdl_c_mg_dl": 72.0,
     "sleep_regularity_index": 90.0,
@@ -111,7 +111,7 @@ TEST_METHODS = {
     "resting_hr_bpm": "Oura Ring",
     "hba1c_percent": "Function Health",
     "glucose_mg_dl": "Function Health",
-    "vat_cm2": "DEXA scan",
+    "vat_lbs_x313.7_cm2": "DEXA scan (lbs reported by GE Lunar; multiply by 313.7 for cm2)",
     "triglycerides_mg_dl": "Function Health",
     "hdl_c_mg_dl": "Function Health",
     "sleep_regularity_index": "Oura Ring",
@@ -131,11 +131,11 @@ TEST_METHODS = {
 
 DOMAIN_COMPONENTS = {
     "fitness": [
-        ("vo2_max_ml_kg_min", 0.35),
+        ("vo2_max_ml_kg_min", 0.30),
         ("grip_strength_kg", 0.25),
         ("fev1_percent_predicted", 0.20),
         ("heart_rate_recovery_bpm", 0.10),
-        ("almi_kg_m2", 0.10),
+        ("almi_kg_m2", 0.15),
     ],
     "cardiovascular": [
         ("apoB_mg_dl", 0.40),
@@ -144,7 +144,7 @@ DOMAIN_COMPONENTS = {
         ("resting_hr_bpm", 0.15),
     ],
     "metabolic": [
-        ("vat_cm2", 0.35),
+        ("vat_lbs_x313.7_cm2", 0.35),
         ("hba1c_percent", 0.25),
         ("triglycerides_mg_dl", 0.20),
         ("hdl_c_mg_dl", 0.20),
@@ -217,7 +217,7 @@ def score_key(key, value, sex="male"):
     if key == "almi_kg_m2":
         if sex == "female":
             return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
-        return _la(v, 7.0, 8.7)
+        return _la(v, 7.0, 9.5)  # optimal = 9.5 (longevity 75th %ile); poor = 7.0 (sarcopenia cutoff)
 
     if key == "fev1_percent_predicted":
         return _la(v, 60.0, 100.0)
@@ -257,7 +257,7 @@ def score_key(key, value, sex="male"):
         return clamp(25.0 - (v - 6.5) * 25.0 / 1.5)
     if key == "glucose_mg_dl":
         return _ld(v, 85.0, 110.0)
-    if key == "vat_cm2":
+    if key == "vat_lbs_x313.7_cm2":
         return _logd(v, 100.0, 300.0)
     if key == "triglycerides_mg_dl":
         return _logd(v, 90.0, 400.0)
@@ -522,9 +522,8 @@ def main():
     print()
 
     print(f"LATEST VALUES  composite={latest_comp:.1f}/100  loss={latest_loss:.4f}")
-    print(f"  {'key':<38} {'value':>8}  {'score':>6}  source")
-    print(f"  {'key':<38} {'value':>8}  {'score':>6}  {'source'}")
-    print(f"  {'-'*38} {'-'*8}  {'-'*6}  {'-'*22}")
+    print(f"  {'key':<42} {'value':>8}  {'score':>6}  {'source'}")
+    print(f"  {'-'*42} {'-'*8}  {'-'*6}  {'-'*22}")
     for domain, components in DOMAIN_COMPONENTS.items():
         print(f"  [{domain}  weight={DOMAIN_WEIGHTS[domain]:.0%}]")
         for key, _ in components:
@@ -536,7 +535,7 @@ def main():
             flag = "  (LOW)" if sc is not None and sc < 60 else ""
             # note when eGFR slot is filled by creatinine fallback
             creat_note = "  (creatinine source; muscle-mass upward bias possible)" if (key == "egfr_ml_min_1_73m2" and latest_vals.get("_egfr_from_creatinine")) else ""
-            print(f"  {key:<38} {vs:>8}  {ss:>6}  {src}{flag}{creat_note}")
+            print(f"  {key:<42} {vs:>8}  {ss:>6}  {src}{flag}{creat_note}")
     print()
 
     if latest_mods:
@@ -549,12 +548,12 @@ def main():
 
     grads = compute_gradients(latest_vals, latest_loss, measured, sex)
     print("GRADIENT ANALYSIS  (loss reduction if key reaches optimal)")
-    print(f"  {'#':<3} {'key':<38} {'current':>8} {'optimal':>8} {'score':>6} {'delta_loss':>10}  source")
-    print(f"  {'-'*3} {'-'*38} {'-'*8} {'-'*8} {'-'*6} {'-'*10}  {'-'*10}")
+    print(f"  {'#':<3} {'key':<42} {'current':>8} {'optimal':>8} {'score':>6} {'delta_loss':>10}  source")
+    print(f"  {'-'*3} {'-'*42} {'-'*8} {'-'*8} {'-'*6} {'-'*10}  {'-'*10}")
     for i, (key, cur, opt, sc, delta, src) in enumerate(grads[:15], 1):
         cs = f"{cur:.2f}" if cur is not None else "-"
         ss = f"{sc:.1f}" if sc is not None else "-"
-        print(f"  {i:<3} {key:<38} {cs:>8} {opt:>8.2f} {ss:>6} {delta:>10.4f}  {src}")
+        print(f"  {i:<3} {key:<42} {cs:>8} {opt:>8.2f} {ss:>6} {delta:>10.4f}  {src}")
     print()
 
     default_grads = [(k, c, o, s, d) for k, c, o, s, d, src in grads if src == "DEFAULT"]
@@ -565,13 +564,13 @@ def main():
         print("  A. GET THESE TESTS  (high-gradient keys on defaults -- real values may move loss significantly)")
         for key, cur, opt, sc, delta in default_grads[:5]:
             method = TEST_METHODS.get(key, "see AGENTS.md")
-            print(f"     delta_loss={delta:.4f}  {key:<38}  {method}")
+            print(f"     delta_loss={delta:.4f}  {key:<42}  {method}")
     if measured_grads:
         print()
         print("  B. INTERVENTION TARGETS  (measured, suboptimal -- these are your gradient descent steps)")
         for key, cur, opt, sc, delta in measured_grads[:5]:
             cs = f"{cur:.2f}" if cur is not None else "?"
-            print(f"     delta_loss={delta:.4f}  {key:<38}  current={cs}  target={opt:.2f}  score={sc:.1f}/100")
+            print(f"     delta_loss={delta:.4f}  {key:<42}  current={cs}  target={opt:.2f}  score={sc:.1f}/100")
 
     print()
     print("---")

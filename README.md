@@ -74,42 +74,49 @@ For clinicians and technically-minded readers. Seven domains, each scored 0-100 
 
 **Fitness / Function: 25%**
 The only domain measuring actual physiological capacity rather than risk proxies, weighted highest accordingly.
-- VO2 max (mL/kg/min): maximal oxygen uptake, incremental lab protocol
-- Grip strength (kg): dominant hand, calibrated dynamometer
-- FEV1 % predicted: spirometry, GLI-2012 reference equations
-- Heart rate recovery (bpm): 1-minute post-maximal-effort drop
-- ALMI (kg/m2): appendicular lean mass index from DEXA
+
+- VO2 max (mL/kg/min): maximal oxygen uptake, incremental lab protocol (within-domain weight 30%)
+- Grip strength (kg): dominant hand, calibrated dynamometer (25%)
+- FEV1 % predicted: spirometry, GLI-2012 reference equations (20%)
+- Heart rate recovery (bpm): 1-minute post-maximal-effort drop (10%)
+- ALMI (kg/m2): appendicular lean mass index from DEXA (15%)
 
 **Cardiovascular: 20%**
+
 - ApoB (mg/dL): preferred over LDL-C; captures atherogenic particle burden directly
 - Systolic BP (mmHg): tiered scoring with thresholds at 120 and 130
 - RDW (%): red cell distribution width; U-shaped mortality relationship
 - Resting HR (bpm): morning supine, before caffeine
 
 **Metabolic: 20%**
-- VAT (cm2): visceral adipose tissue from DEXA; more metabolically relevant than total body fat
+
+- VAT (cm2): visceral adipose tissue area from DEXA; more metabolically relevant than total body fat. Enter as `vat_lbs_x313.7_cm2` -- if your DEXA machine (e.g., GE Lunar) reports VAT in lbs, multiply by 313.7 to convert to cm2 before entering.
 - HbA1c (%): U-shaped scoring; values below 5.0% mildly penalized
 - Glucose (mg/dL): optional; blends 70/30 with HbA1c when present; Function Health draws are always fasting
 - Triglycerides (mg/dL): fasting preferred
 - HDL-C (mg/dL)
 
 **Sleep / Recovery: 12%**
+
 - Sleep Regularity Index (0-100): consistency of sleep/wake timing; 30-day rolling
 - Sleep duration (hours): asymmetric U-shape; right tail penalty shallower than left
 - HRV RMSSD (ms): morning supine or overnight average; absolute thresholds (declines naturally with age by design)
 - Sleep efficiency (%): time asleep / time in bed
 
 **Inflammation: 12%**
+
 - hs-CRP (mg/L): high-sensitivity required; standard CRP insufficient for optimization (weight: 45%)
 - Homocysteine (umol/L): fasting; must be requested specifically (weight: 30%)
 - Omega-3 Index (RBC-equivalent %): enter the Function Health OmegaCheck EPA+DHA (not DPA) value multiplied by 1.47 before entering (weight: 25%)
 
 **Renal / Organ: 6%**
+
 - Cystatin C (mg/L): stronger predictor than creatinine; must be requested specifically and costs extra at Function Health
 - eGFR (mL/min/1.73m2): cystatin-C or combined CKD-EPI 2021 preferred; creatinine-only eGFR used automatically as fallback when cystatin-based is absent
 - Albumin (g/dL)
 
 **Hormonal: 5%**
+
 - TSH (mIU/L): optimal window 1.9-2.9 mIU/L; standard clinical range too broad for vitality optimization
 - Free T4 (ng/dL): free fraction required; total T4 not equivalent
 
