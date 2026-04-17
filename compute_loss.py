@@ -35,39 +35,37 @@ DOMAIN_WEIGHTS = {
 }
 
 DEFAULTS = {
-    "vo2_max_ml_kg_min": 40.0,
+    "vo2_max_ml_kg_min": 49.1,
     "grip_strength_kg": 46.0,
-    "fev1_percent_predicted": 93.0,
-    "heart_rate_recovery_bpm": 25.0,
-    "almi_kg_m2": 8.1,
-    "apoB_mg_dl": 80.0,
-    "systolic_bp_mmHg": 122.0,
-    "rdw_percent": 13.2,
-    "resting_hr_bpm": 62.0,
-    "hba1c_percent": 5.4,
-    "glucose_mg_dl": None,
-    "vat_lbs_x313.7_cm2": 110.0,
-    "triglycerides_mg_dl": 100.0,
-    "hdl_c_mg_dl": 52.0,
-    "sleep_regularity_index": 72.0,
+    "heart_rate_recovery_bpm": 29.0,
+    "almi_kg_m2": 8.7,
+    "apoB_mg_dl": 82.0,
+    "systolic_bp_mmHg": 112.0,
+    "rdw_percent": 11.8,
+    "resting_hr_bpm": 52.0,
+    "hba1c_percent": 5.3,
+    "glucose_mg_dl": 89.0,
+    "vat_lbs_x313.7_cm2": 50.0,
+    "triglycerides_mg_dl": 54.0,
+    "hdl_c_mg_dl": 63.0,
+    "sleep_regularity_index": 83.0,
     "sleep_duration_hours": 7.0,
-    "hrv_ms": 40.0,
-    "sleep_efficiency_percent": 82.0,
-    "hs_crp_mg_l": 1.2,
-    "homocysteine_umol_l": 9.0,
-    "omega3_1.47x_epa_dha_index_percent": 5.5,
-    "cystatin_c_mg_l": 0.90,
+    "hrv_ms": 35.0,
+    "hs_crp_mg_l": 0.2,
+    "homocysteine_umol_l": 11.0,
+    "omega3_1.47x_epa_dha_index_percent": 5.44,
+    "cystatin_c_mg_l": 0.85,
     "egfr_ml_min_1_73m2": None,
-    "egfr_cr_ml_min_1_73m2": 88.0,
-    "albumin_g_dl": 4.1,
-    "tsh_miu_l": 2.5,
-    "free_t4_ng_dl": 1.1,
+    "egfr_cr_ml_min_1_73m2": 83.0,
+    "albumin_g_dl": 4.7,
+    "tsh_miu_l": 2.0,
+    "free_t4_ng_dl": 1.4,
 }
+
 
 OPTIMALS = {
     "vo2_max_ml_kg_min": 52.0,
     "grip_strength_kg": 52.0,
-    "fev1_percent_predicted": 100.0,
     "heart_rate_recovery_bpm": 30.0,
     "almi_kg_m2": 9.5,  # longevity 75th percentile target; score_key matches
     "apoB_mg_dl": 70.0,
@@ -82,7 +80,6 @@ OPTIMALS = {
     "sleep_regularity_index": 90.0,
     "sleep_duration_hours": 7.2,
     "hrv_ms": 65.0,
-    "sleep_efficiency_percent": 90.0,
     "hs_crp_mg_l": 0.3,
     "homocysteine_umol_l": 5.5,
     "omega3_1.47x_epa_dha_index_percent": 8.0,
@@ -99,43 +96,12 @@ FEMALE_THRESHOLDS = {
     "almi_kg_m2": {"opt": 7.5, "poor": 5.5},
 }
 
-TEST_METHODS = {
-    "vo2_max_ml_kg_min": "Lab VO2 max test",
-    "grip_strength_kg": "Handheld dynamometer, dominant hand, best of 3 attempts",
-    "fev1_percent_predicted": "Spirometry with GLI-2012 reference equations",
-    "heart_rate_recovery_bpm": "Lab VO2 max test",
-    "almi_kg_m2": "DEXA scan",
-    "apoB_mg_dl": "Function Health",
-    "systolic_bp_mmHg": "Validated BP cuff",
-    "rdw_percent": "Function Health",
-    "resting_hr_bpm": "Oura Ring",
-    "hba1c_percent": "Function Health",
-    "glucose_mg_dl": "Function Health",
-    "vat_lbs_x313.7_cm2": "DEXA scan (lbs reported by GE Lunar; multiply by 313.7 for cm2)",
-    "triglycerides_mg_dl": "Function Health",
-    "hdl_c_mg_dl": "Function Health",
-    "sleep_regularity_index": "Oura Ring",
-    "sleep_duration_hours": "Oura Ring",
-    "hrv_ms": "Polar H10 morning supine 5-min",
-    "sleep_efficiency_percent": "Oura Ring",
-    "hs_crp_mg_l": "Function Health",
-    "homocysteine_umol_l": "Function Health",
-    "omega3_1.47x_epa_dha_index_percent": "Function Health",
-    "cystatin_c_mg_l": "Function Health (add-on panel)",
-    "egfr_ml_min_1_73m2": "Function Health (add-on panel)",
-    "egfr_cr_ml_min_1_73m2": "Function Health (standard panel)",
-    "albumin_g_dl": "Function Health",
-    "tsh_miu_l": "Function Health",
-    "free_t4_ng_dl": "Function Health",
-}
-
 DOMAIN_COMPONENTS = {
     "fitness": [
-        ("vo2_max_ml_kg_min", 0.30),
+        ("vo2_max_ml_kg_min", 0.35),
         ("grip_strength_kg", 0.25),
-        ("fev1_percent_predicted", 0.20),
-        ("heart_rate_recovery_bpm", 0.10),
-        ("almi_kg_m2", 0.15),
+        ("heart_rate_recovery_bpm", 0.20),
+        ("almi_kg_m2", 0.20),
     ],
     "cardiovascular": [
         ("apoB_mg_dl", 0.40),
@@ -150,10 +116,9 @@ DOMAIN_COMPONENTS = {
         ("hdl_c_mg_dl", 0.20),
     ],
     "sleep": [
-        ("sleep_regularity_index", 0.35),
+        ("sleep_regularity_index", 0.40),
         ("sleep_duration_hours", 0.30),
-        ("hrv_ms", 0.25),
-        ("sleep_efficiency_percent", 0.10),
+        ("hrv_ms", 0.30),
     ],
     "inflammation": [
         ("hs_crp_mg_l", 0.45),
@@ -219,8 +184,6 @@ def score_key(key, value, sex="male"):
             return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
         return _la(v, 7.0, 9.5)  # optimal = 9.5 (longevity 75th %ile); poor = 7.0 (sarcopenia cutoff)
 
-    if key == "fev1_percent_predicted":
-        return _la(v, 60.0, 100.0)
     if key == "heart_rate_recovery_bpm":
         return _la(v, 10.0, 30.0)
 
@@ -274,8 +237,6 @@ def score_key(key, value, sex="male"):
         return clamp(100.0 - (v - 8.0) * 30.0 / 1.5)
     if key == "hrv_ms":
         return _la(v, 18.0, 60.0)
-    if key == "sleep_efficiency_percent":
-        return _la(v, 65.0, 87.0)
 
     if key == "hs_crp_mg_l":
         return _logd(v, 0.5, 15.0)
@@ -561,10 +522,9 @@ def main():
 
     print("PRIORITY TARGETS")
     if default_grads:
-        print("  A. GET THESE TESTS  (high-gradient keys on defaults -- real values may move loss significantly)")
+        print("  A. TEST THESE  (high-gradient keys on defaults -- real values may move loss significantly)")
         for key, cur, opt, sc, delta in default_grads[:5]:
-            method = TEST_METHODS.get(key, "see AGENTS.md")
-            print(f"     delta_loss={delta:.4f}  {key:<42}  {method}")
+            print(f"     delta_loss={delta:.4f}  {key}")
     if measured_grads:
         print()
         print("  B. INTERVENTION TARGETS  (measured, suboptimal -- these are your gradient descent steps)")

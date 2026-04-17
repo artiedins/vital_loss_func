@@ -75,43 +75,41 @@ For clinicians and technically-minded readers. Seven domains, each scored 0-100 
 **Fitness / Function: 25%**
 The only domain measuring actual physiological capacity rather than risk proxies, weighted highest accordingly.
 
-- VO2 max (mL/kg/min): maximal oxygen uptake, incremental lab protocol (within-domain weight 30%)
+- VO2 max (mL/kg/min): maximal oxygen uptake, incremental lab protocol (within-domain weight 35%)
 - Grip strength (kg): dominant hand, calibrated dynamometer (25%)
-- FEV1 % predicted: spirometry, GLI-2012 reference equations (20%)
-- Heart rate recovery (bpm): 1-minute post-maximal-effort drop (10%)
-- ALMI (kg/m2): appendicular lean mass index from DEXA (15%)
+- Heart rate recovery (bpm): 1-minute post-maximal-effort drop (20%)
+- ALMI (kg/m2): appendicular lean mass index from DEXA (20%)
 
 **Cardiovascular: 20%**
 
 - ApoB (mg/dL): preferred over LDL-C; captures atherogenic particle burden directly
 - Systolic BP (mmHg): tiered scoring with thresholds at 120 and 130
 - RDW (%): red cell distribution width; U-shaped mortality relationship
-- Resting HR (bpm): morning supine, before caffeine
+- Resting HR (bpm): overnight minimum, validated wearable
 
 **Metabolic: 20%**
 
 - VAT (cm2): visceral adipose tissue area from DEXA; more metabolically relevant than total body fat. Enter as `vat_lbs_x313.7_cm2` -- if your DEXA machine (e.g., GE Lunar) reports VAT in lbs, multiply by 313.7 to convert to cm2 before entering.
 - HbA1c (%): U-shaped scoring; values below 5.0% mildly penalized
-- Glucose (mg/dL): optional; blends 70/30 with HbA1c when present; Function Health draws are always fasting
+- Glucose (mg/dL): optional; blends 70/30 with HbA1c when present; fasting required
 - Triglycerides (mg/dL): fasting preferred
 - HDL-C (mg/dL)
 
 **Sleep / Recovery: 12%**
 
-- Sleep Regularity Index (0-100): consistency of sleep/wake timing; 30-day rolling
-- Sleep duration (hours): asymmetric U-shape; right tail penalty shallower than left
-- HRV RMSSD (ms): morning supine or overnight average; absolute thresholds (declines naturally with age by design)
-- Sleep efficiency (%): time asleep / time in bed
+- Sleep Regularity Index (0-100): consistency of sleep/wake timing; 30-day rolling (within-domain weight 40%)
+- Sleep duration (hours): asymmetric U-shape; right tail penalty shallower than left (30%)
+- HRV RMSSD (ms): morning supine or overnight average; absolute thresholds (30%)
 
 **Inflammation: 12%**
 
 - hs-CRP (mg/L): high-sensitivity required; standard CRP insufficient for optimization (weight: 45%)
 - Homocysteine (umol/L): fasting; must be requested specifically (weight: 30%)
-- Omega-3 Index (RBC-equivalent %): enter the Function Health OmegaCheck EPA+DHA (not DPA) value multiplied by 1.47 before entering (weight: 25%)
+- Omega-3 Index (RBC-equivalent %): multiply whole-blood EPA+DHA (not DPA) by 1.47 before entering (weight: 25%)
 
 **Renal / Organ: 6%**
 
-- Cystatin C (mg/L): stronger predictor than creatinine; must be requested specifically and costs extra at Function Health
+- Cystatin C (mg/L): stronger predictor than creatinine; must be requested specifically
 - eGFR (mL/min/1.73m2): cystatin-C or combined CKD-EPI 2021 preferred; creatinine-only eGFR used automatically as fallback when cystatin-based is absent
 - Albumin (g/dL)
 
@@ -133,7 +131,7 @@ A few of the less obvious design decisions are backed by recent large-cohort fin
 - Windred, Cain, Phillips et al. -- *Sleep regularity is a stronger predictor of mortality risk than sleep duration* -- Sleep 2024, UK Biobank n=88,975. Nonlinear mortality association with sleep/wake timing consistency, independent of duration and cardiovascular risk factors. https://pubmed.ncbi.nlm.nih.gov/37738616/
 - Yang et al. -- *Development and validation of a blood biomarker score for mortality prediction* -- Journal of Translational Medicine 2023. Cystatin C as the strongest single blood predictor; basis for its 60% within-domain weight. https://translational-medicine.biomedcentral.com/articles/10.1186/s12967-023-04334-w
 - Sniderman et al. -- *The superiority of apolipoprotein B over low-density lipoprotein cholesterol* -- JAMA Cardiology 2019. The ApoB over LDL-C preference; ApoB-LDL discordance and cardiovascular risk. https://pubmed.ncbi.nlm.nih.gov/31642874/
-- Harris and Von Schacky -- *The Omega-3 Index: a new risk factor for death from coronary heart disease?* -- Prev Med 2004. Original definition of the Omega-3 Index (RBC membrane EPA+DHA) and the >=8% low-risk threshold. Cutpoints confirmed in a 10-cohort meta-analysis (Atherosclerosis 2017). Function Health OmegaCheck reports whole-blood values; multiply EPA+DHA by 1.47 before entering (conversion per Stark et al., Prostaglandins 2016). https://pubmed.ncbi.nlm.nih.gov/15208005/
+- Harris and Von Schacky -- *The Omega-3 Index: a new risk factor for death from coronary heart disease?* -- Prev Med 2004. Original definition of the Omega-3 Index (RBC membrane EPA+DHA) and the >=8% low-risk threshold. Cutpoints confirmed in a 10-cohort meta-analysis (Atherosclerosis 2017). Whole-blood EPA+DHA multiplied by 1.47 gives the RBC-membrane equivalent (Stark et al., Prostaglandins 2016). https://pubmed.ncbi.nlm.nih.gov/15208005/
 - O'Toole CK et al. (MULTI study, Columbia University) -- *Sleep chart of biological aging clocks across organs and omics* -- medRxiv preprint August 2025. Optimal sleep window 6.4-7.8h across 23 clocks and 17 organ systems; basis for the asymmetric sleep duration scoring curve. Note: preprint, peer review pending. https://www.medrxiv.org/content/10.1101/2025.08.08.25333313v1
 - Chen et al. -- *OMICmAge: An integrative multi-omics approach to quantify biological age* -- Nature Aging 2026. Empirical validation that multi-domain integration outperforms single-modal clocks; supports the seven-domain architecture. https://www.nature.com/articles/s43587-026-01073-7
 
