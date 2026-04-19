@@ -67,7 +67,7 @@ OPTIMALS = {
     "vo2_max_ml_kg_min": 52.0,
     "grip_strength_kg": 52.0,
     "heart_rate_recovery_bpm": 30.0,
-    "almi_kg_m2": 9.5,  # longevity 75th percentile target; score_key matches
+    "almi_kg_m2": 9.5,
     "apoB_mg_dl": 70.0,
     "systolic_bp_mmHg": 112.0,
     "rdw_percent": 12.5,
