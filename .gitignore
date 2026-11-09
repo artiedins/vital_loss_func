@@ -1,5 +1,12 @@
 dated_test_results/
+extra_test_results/
 raw_test_results/
 *.pyc
 __pycache__/
-.DS_Store
+
+# HARNESS STUFF
+p.md
+NOTES.md
+task_report
+previous_sessions
+
