@@ -19,7 +19,7 @@
 
 import yaml, math
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime
 
 RESULTS_DIR = Path("dated_test_results")
 EXTRA_RESULTS_DIR = Path("extra_test_results")
@@ -35,124 +35,144 @@ DOMAIN_WEIGHTS = {
     "hormonal": 0.05,
 }
 
+# Population-median fallbacks for unmeasured keys (US adults ~45-49, NHANES/FRIEND/UKB).
+# Never hardcode personal data here; missing keys should surface in TEST THESE.
 DEFAULTS = {
-    "vo2_max_ml_kg_min": 49.1,
-    "grip_strength_kg": 46.0,
-    "cmj_height_cm": 35.0,
-    "heart_rate_recovery_bpm": 29.0,
-    "almi_kg_m2": 8.7,
-    "apoB_mg_dl": 82.0,
-    "systolic_bp_mmHg": 112.0,
-    "rdw_percent": 11.8,
-    "resting_hr_bpm": 52.0,
-    "hba1c_percent": 5.3,
-    "glucose_mg_dl": 89.0,
-    "vat_lbs_x313.7_cm2": 50.0,
-    "triglycerides_mg_dl": 54.0,
-    "hdl_c_mg_dl": 63.0,
-    "sleep_regularity_index": 83.0,
-    "sleep_duration_hours": 7.0,
+    "vo2_max_ml_kg_min": 37.0,
+    "grip_strength_kg": 44.0,
+    "cmj_height_cm": 28.0,
+    "heart_rate_recovery_bpm": 22.0,
+    "almi_kg_m2": 8.4,
+    "apoB_mg_dl": 95.0,
+    "systolic_bp_mmHg": 122.0,
+    "rdw_percent": 12.8,
+    "resting_hr_bpm": 64.0,
+    "vat_mass_lbs": 1.60,
+    "fmi_kg_m2": 7.9,
+    "hba1c_percent": 5.5,
+    "glucose_mg_dl": 95.0,
+    "triglycerides_mg_dl": 115.0,
+    "hdl_c_mg_dl": 50.0,
+    "sleep_regularity_index": 72.0,
+    "sleep_duration_hours": 6.9,
     "hrv_ms": 35.0,
-    "hs_crp_mg_l": 0.2,
-    "homocysteine_umol_l": 11.0,
-    "omega3_1.47x_epa_dha_index_percent": 5.44,
+    "hs_crp_mg_l": 1.5,
+    "homocysteine_umol_l": 9.5,
+    "omega3_1.47x_epa_dha_index_percent": 5.0,
     "cystatin_c_mg_l": 0.85,
-    "uacr_mg_g": 10.0,
-    "egfr_cr_ml_min_1_73m2": 83.0,
-    "albumin_g_dl": 4.7,
-    "tsh_miu_l": 2.0,
-    "free_t4_ng_dl": 1.4,
-    "methylmalonic_acid_nmol_l": 221.0,
-    "magnesium_rbc_mg_dl": 4.5,
+    "uacr_mg_g": 6.0,
+    "egfr_cr_ml_min_1_73m2": 95.0,
+    "albumin_g_dl": 4.3,
+    "tsh_miu_l": 1.8,
+    "free_t4_ng_dl": 1.15,
+    "methylmalonic_acid_nmol_l": 160.0,
+    "magnesium_rbc_mg_dl": 5.0,
+    "bmd_t_score": -0.2,
 }
 
-# OPTIMALS are fixed absolute standards, not age-graded. Aspirational capability
-# targets are flagged in METRIC_META so rankings distinguish benchmarks from gaps.
+FEMALE_DEFAULTS = {
+    "vo2_max_ml_kg_min": 28.0,
+    "grip_strength_kg": 28.0,
+    "cmj_height_cm": 19.0,
+    "almi_kg_m2": 6.5,
+    "vat_mass_lbs": 0.95,
+    "fmi_kg_m2": 11.6,
+    "hdl_c_mg_dl": 60.0,
+}
+
+# OPTIMALS are fixed absolute targets matching the exact 100-point edge (one-sided)
+# or plateau midpoint (U-shaped) of score_key() so gradient targets never overshoot.
 OPTIMALS = {
-    "vo2_max_ml_kg_min": 52.0,
+    "vo2_max_ml_kg_min": 55.0,
     "grip_strength_kg": 52.0,
-    "cmj_height_cm": 45.0,
+    "cmj_height_cm": 46.0,
     "heart_rate_recovery_bpm": 30.0,
     "almi_kg_m2": 9.5,
     "apoB_mg_dl": 60.0,
-    "systolic_bp_mmHg": 112.0,
+    "systolic_bp_mmHg": 115.0,
     "rdw_percent": 12.5,
-    "resting_hr_bpm": 44.0,
+    "resting_hr_bpm": 48.0,
+    "vat_mass_lbs": 0.75,
+    "fmi_kg_m2": 3.0,
     "hba1c_percent": 5.2,
     "glucose_mg_dl": 90.0,
-    "vat_lbs_x313.7_cm2": 80.0,
-    "triglycerides_mg_dl": 70.0,
+    "triglycerides_mg_dl": 90.0,
     "hdl_c_mg_dl": 60.0,
-    "sleep_regularity_index": 90.0,
+    "sleep_regularity_index": 85.0,
     "sleep_duration_hours": 7.2,
-    "hrv_ms": 45.0,
-    "hs_crp_mg_l": 0.3,
+    "hrv_ms": 48.0,
+    "hs_crp_mg_l": 0.5,
     "homocysteine_umol_l": 8.5,
     "omega3_1.47x_epa_dha_index_percent": 8.0,
-    "cystatin_c_mg_l": 0.75,
+    "cystatin_c_mg_l": 0.85,
     "uacr_mg_g": 5.0,
-    "albumin_g_dl": 4.4,
+    "albumin_g_dl": 4.2,
     "tsh_miu_l": 2.4,
     "free_t4_ng_dl": 1.15,
-    "methylmalonic_acid_nmol_l": 120.0,
-    "magnesium_rbc_mg_dl": 5.8,
+    "methylmalonic_acid_nmol_l": 150.0,
+    "magnesium_rbc_mg_dl": 6.0,
+    "bmd_t_score": 0.0,
 }
 
 FEMALE_THRESHOLDS = {
-    "vo2_max_ml_kg_min": {"opt": 42.0, "poor": 19.0},
+    "vo2_max_ml_kg_min": {"opt": 45.0, "poor": 19.0},
     "grip_strength_kg": {"opt": 36.0, "poor": 16.0},
-    "cmj_height_cm": {"opt": 32.0, "poor": 14.0},
+    "cmj_height_cm": {"opt": 34.0, "poor": 14.0},
     "almi_kg_m2": {"opt": 7.5, "poor": 5.5},
+    "vat_mass_lbs": {"opt": 0.50, "poor": 3.50},
+    "fmi_kg_m2": {"opt": 5.5, "lo": 4.5, "hi": 6.5, "poor_lo": 3.0, "poor_hi": 13.0},
     "hdl_c_mg_dl": {"opt": 70.0, "poor": 35.0},
 }
 
-# Readout keys are tracked for workout recovery and supplement dosing without
-# shifting composite weights. Non-actionable/settled labs are omitted to keep
-# context light and tight for LLM workout and medication/supplement planning.
+# Readout keys are tracked for recovery, bone guardrail, and supplement dosing without
+# shifting composite weights.
 READOUT_KEYS = {
     "hrv_ms",
     "glucose_mg_dl",
     "methylmalonic_acid_nmol_l",
     "magnesium_rbc_mg_dl",
+    "bmd_t_score",
 }
 
 METRIC_META = {
-    "vo2_max_ml_kg_min": {"klass": "capability", "intervention": "1-2 month VO2max interval block (e.g. 4x4 min at 90-95% HRmax)", "aspirational": True},
-    "grip_strength_kg": {"klass": "capability", "intervention": "heavy carries, dead hangs, pulling resistance", "aspirational": True},
-    "cmj_height_cm": {"klass": "capability", "intervention": "CMJ plyometrics + explosive resistance training", "aspirational": True},
-    "almi_kg_m2": {"klass": "capability", "intervention": "hypertrophy resistance training + protein + 5g creatine", "aspirational": False},
-    "heart_rate_recovery_bpm": {"klass": "autonomic", "intervention": "LT1 jogging volume (sub-LT1 aerobic base)", "aspirational": False},
-    "resting_hr_bpm": {"klass": "autonomic", "intervention": "LT1 jogging volume (sub-LT1 aerobic base)", "aspirational": False},
-    "apoB_mg_dl": {"klass": "disease", "intervention": "ezetimibe 10mg + psyllium 10g + low saturated fat", "aspirational": False},
-    "systolic_bp_mmHg": {"klass": "disease", "intervention": "LT1 aerobic base + sodium/potassium balance", "aspirational": False},
-    "rdw_percent": {"klass": "disease", "intervention": "B12 / methylation + iron sufficiency", "aspirational": False},
-    "vat_lbs_x313.7_cm2": {"klass": "cardiometabolic", "intervention": "energy balance + LT1 jogging volume", "aspirational": False},
-    "hba1c_percent": {"klass": "cardiometabolic", "intervention": "diet quality, post-meal walks, LT1 + resistance volume", "aspirational": False},
-    "triglycerides_mg_dl": {"klass": "cardiometabolic", "intervention": "carb/alcohol moderation, omega-3, LT1 volume", "aspirational": False},
-    "hdl_c_mg_dl": {"klass": "cardiometabolic", "intervention": "aerobic activity", "aspirational": False},
-    "glucose_mg_dl": {"klass": "cardiometabolic", "intervention": "diet quality, post-meal movement", "aspirational": False},
-    "sleep_regularity_index": {"klass": "sleep", "intervention": "consistent sleep/wake timing", "aspirational": False},
-    "sleep_duration_hours": {"klass": "sleep", "intervention": "protect the sleep opportunity window", "aspirational": False},
-    "hs_crp_mg_l": {"klass": "disease", "intervention": "aerobic base, body composition, omega-3", "aspirational": False},
-    "homocysteine_umol_l": {"klass": "disease", "intervention": "B12 500-1000mcg/day (+/- methylfolate; target band 7-10 umol/L)", "aspirational": False},
-    "omega3_1.47x_epa_dha_index_percent": {"klass": "disease", "intervention": "2 pills/day rTG fish oil (~2g EPA+DHA, e.g. Sports Research AlaskaOmega)", "aspirational": False},
-    "cystatin_c_mg_l": {"klass": "renal", "intervention": None, "aspirational": False},
-    "uacr_mg_g": {"klass": "renal", "intervention": None, "aspirational": False},
-    "albumin_g_dl": {"klass": "renal", "intervention": None, "aspirational": False},
-    "tsh_miu_l": {"klass": "hormonal", "intervention": None, "aspirational": False},
-    "free_t4_ng_dl": {"klass": "hormonal", "intervention": None, "aspirational": False},
-    "hrv_ms": {"klass": "autonomic", "intervention": "autonomic recovery readout -- pace HIIT/CMJ vs LT1 load", "aspirational": False},
-    "methylmalonic_acid_nmol_l": {"klass": "supplement", "intervention": "vitamin B12 500-1000 mcg/day (target <150 nmol/L)", "aspirational": False},
-    "magnesium_rbc_mg_dl": {"klass": "supplement", "intervention": "magnesium glycinate 200-400 mg elemental/day (target 5.5-6.5 mg/dL)", "aspirational": False},
+    "vo2_max_ml_kg_min": {"klass": "capability", "intervention": "polarized endurance: 1-2x/wk VO2max intervals (e.g. 4x4 min at 90-95% HRmax or incline/low-impact) on an easy sub-LT1 base"},
+    "grip_strength_kg": {"klass": "capability", "intervention": "heavy carries, dead hangs, pulling resistance"},
+    "cmj_height_cm": {"klass": "capability", "intervention": "lower-body strength + explosive plyometrics (progress tendon load gradually)"},
+    "almi_kg_m2": {"klass": "capability", "intervention": "hypertrophy resistance training + protein + 5g creatine"},
+    "heart_rate_recovery_bpm": {"klass": "autonomic", "intervention": "consistent sub-LT1 aerobic base + polarized endurance volume"},
+    "resting_hr_bpm": {"klass": "autonomic", "intervention": "consistent sub-LT1 aerobic base + polarized endurance volume"},
+    "apoB_mg_dl": {"klass": "disease", "intervention": "ezetimibe 10mg + psyllium 10g + low saturated fat"},
+    "systolic_bp_mmHg": {"klass": "disease", "intervention": "aerobic base + sodium/potassium balance"},
+    "rdw_percent": {"klass": "disease", "intervention": "B12 / methylation + iron sufficiency"},
+    "vat_mass_lbs": {"klass": "cardiometabolic", "intervention": "energy balance + consistent sub-LT1 aerobic volume"},
+    "fmi_kg_m2": {"klass": "cardiometabolic", "intervention": "modest energy deficit + high protein + endurance/resistance volume"},
+    "hba1c_percent": {"klass": "cardiometabolic", "intervention": "diet quality, post-meal walks, aerobic + resistance volume"},
+    "triglycerides_mg_dl": {"klass": "cardiometabolic", "intervention": "carb/alcohol moderation, omega-3, aerobic volume"},
+    "hdl_c_mg_dl": {"klass": "cardiometabolic", "intervention": "aerobic activity"},
+    "glucose_mg_dl": {"klass": "cardiometabolic", "intervention": "diet quality, post-meal movement"},
+    "sleep_regularity_index": {"klass": "sleep", "intervention": "consistent sleep/wake timing"},
+    "sleep_duration_hours": {"klass": "sleep", "intervention": "protect the sleep opportunity window"},
+    "hs_crp_mg_l": {"klass": "disease", "intervention": "aerobic base, body composition, omega-3"},
+    "homocysteine_umol_l": {"klass": "disease", "intervention": "B12 500-1000mcg/day (+/- methylfolate; target band 7-10 umol/L)"},
+    "omega3_1.47x_epa_dha_index_percent": {"klass": "disease", "intervention": "2 pills/day rTG fish oil (~2g EPA+DHA, e.g. Sports Research AlaskaOmega)"},
+    "cystatin_c_mg_l": {"klass": "renal", "intervention": None},
+    "uacr_mg_g": {"klass": "renal", "intervention": None},
+    "albumin_g_dl": {"klass": "renal", "intervention": None},
+    "tsh_miu_l": {"klass": "hormonal", "intervention": None},
+    "free_t4_ng_dl": {"klass": "hormonal", "intervention": None},
+    "hrv_ms": {"klass": "autonomic", "intervention": "autonomic recovery readout -- pace HIIT/CMJ vs easy aerobic load"},
+    "methylmalonic_acid_nmol_l": {"klass": "supplement", "intervention": "vitamin B12 500-1000 mcg/day (target <150 nmol/L)"},
+    "magnesium_rbc_mg_dl": {"klass": "supplement", "intervention": "magnesium glycinate 200-400 mg elemental/day (target 5.5-6.5 mg/dL)"},
+    "bmd_t_score": {"klass": "bone", "intervention": "heavy axial resistance training + impact loading; consider clinical hip/spine DXA"},
 }
 
 DOMAIN_COMPONENTS = {
     "fitness": [
-        ("vo2_max_ml_kg_min", 0.30),
-        ("grip_strength_kg", 0.20),
-        ("cmj_height_cm", 0.20),
-        ("almi_kg_m2", 0.15),
-        ("heart_rate_recovery_bpm", 0.15),
+        ("vo2_max_ml_kg_min", 0.35),
+        ("cmj_height_cm", 0.22),
+        ("almi_kg_m2", 0.18),
+        ("grip_strength_kg", 0.15),
+        ("heart_rate_recovery_bpm", 0.10),
     ],
     "cardiovascular": [
         ("apoB_mg_dl", 0.40),
@@ -161,10 +181,11 @@ DOMAIN_COMPONENTS = {
         ("rdw_percent", 0.10),
     ],
     "metabolic": [
-        ("vat_lbs_x313.7_cm2", 0.35),
+        ("vat_mass_lbs", 0.25),
+        ("fmi_kg_m2", 0.15),
         ("hba1c_percent", 0.25),
         ("triglycerides_mg_dl", 0.20),
-        ("hdl_c_mg_dl", 0.20),
+        ("hdl_c_mg_dl", 0.15),
     ],
     "sleep": [
         ("sleep_regularity_index", 0.55),
@@ -216,6 +237,12 @@ def get_optimal(key, sex):
     return OPTIMALS[key]
 
 
+def get_default(key, sex):
+    if sex == "female" and key in FEMALE_DEFAULTS:
+        return FEMALE_DEFAULTS[key]
+    return DEFAULTS[key]
+
+
 def score_key(key, value, sex="male"):
     if value is None:
         return None
@@ -224,33 +251,35 @@ def score_key(key, value, sex="male"):
     if key == "vo2_max_ml_kg_min":
         if sex == "female":
             return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
-        return _la(v, 22.0, 52.0)
+        return _la(v, 22.0, 55.0)
     if key == "grip_strength_kg":
         if sex == "female":
             return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
         return _la(v, 28.0, 52.0)
     if key == "cmj_height_cm":
+        # locked to hands-on-hips (akimbo) protocol
         if sex == "female":
             return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
-        return _la(v, 20.0, 45.0)
+        return _la(v, 20.0, 46.0)
     if key == "almi_kg_m2":
         if sex == "female":
             return _la(v, FEMALE_THRESHOLDS[key]["poor"], FEMALE_THRESHOLDS[key]["opt"])
         return _la(v, 7.0, 9.5)
 
     if key == "heart_rate_recovery_bpm":
+        # passive stopped standing/seated 60-second drop after near-maximal effort
         return _la(v, 10.0, 30.0)
 
     if key == "apoB_mg_dl":
         return _logd(v, 60.0, 150.0)
     if key == "systolic_bp_mmHg":
-        if v < 115:
+        if v <= 115.0:
             return 100.0
-        if v < 120:
+        if v < 120.0:
             return 92.0
-        if v < 130:
+        if v < 130.0:
             return 85.0
-        if v < 140:
+        if v < 140.0:
             return 65.0
         return clamp(65.0 - (v - 140.0) * 65.0 / 40.0)
     if key == "rdw_percent":
@@ -262,6 +291,22 @@ def score_key(key, value, sex="male"):
     if key == "resting_hr_bpm":
         return _ld(v, 48.0, 95.0)
 
+    if key == "vat_mass_lbs":
+        if sex == "female":
+            return _logd(v, FEMALE_THRESHOLDS[key]["opt"], FEMALE_THRESHOLDS[key]["poor"])
+        return _logd(v, 0.75, 4.50)
+    if key == "fmi_kg_m2":
+        if sex == "female":
+            ft = FEMALE_THRESHOLDS[key]
+            lo, hi, poor_lo, poor_hi = ft["lo"], ft["hi"], ft["poor_lo"], ft["poor_hi"]
+        else:
+            lo, hi, poor_lo, poor_hi = 2.5, 3.5, 1.5, 9.0
+        if lo <= v <= hi:
+            return 100.0
+        if v < lo:
+            # gentle low-end taper protects against excessive leanness / RED-S
+            return clamp(50.0 + (v - poor_lo) * 50.0 / (lo - poor_lo))
+        return _ld(v, hi, poor_hi)
     if key == "hba1c_percent":
         if 5.0 <= v <= 5.4:
             return 100.0
@@ -274,8 +319,6 @@ def score_key(key, value, sex="male"):
         return clamp(25.0 - (v - 6.5) * 25.0 / 1.5)
     if key == "glucose_mg_dl":
         return _ld(v, 90.0, 125.0)
-    if key == "vat_lbs_x313.7_cm2":
-        return _logd(v, 100.0, 300.0)
     if key == "triglycerides_mg_dl":
         return _logd(v, 90.0, 400.0)
     if key == "hdl_c_mg_dl":
@@ -330,7 +373,7 @@ def score_key(key, value, sex="male"):
             return _la(v, 0.5, 0.9)
         return _ld(v, 1.4, 2.0)
 
-    # readout-only supplement curves (used for display and LOW flagging, never in composite)
+    # readout-only supplement and guardrail curves (never in composite)
     if key == "methylmalonic_acid_nmol_l":
         return _ld(v, 150.0, 300.0)
     if key == "magnesium_rbc_mg_dl":
@@ -339,6 +382,9 @@ def score_key(key, value, sex="male"):
         if v < 5.5:
             return _la(v, 4.0, 5.5)
         return _ld(v, 6.5, 8.0)
+    if key == "bmd_t_score":
+        # WHO osteoporosis (-2.5 -> 0), osteopenia (-1.0 -> 60, triggers LOW below -1.0), normal (>=0.0 -> 100)
+        return _la(v, -2.5, 0.0)
 
     return None
 
@@ -360,16 +406,19 @@ def composite_score(values, sex):
     return sum(DOMAIN_WEIGHTS[d] * domain_score(d, values, sex) for d in DOMAIN_WEIGHTS)
 
 
-def interaction_modifier(values):
+def interaction_modifier(values, sex="male"):
     mods = []
     v = values
-    if v.get("hba1c_percent", 5.0) > 5.7 and v.get("triglycerides_mg_dl", 100) > 150 and v.get("hdl_c_mg_dl", 60) < 40:
+    hdl_cut = 50.0 if sex == "female" else 40.0
+    if v.get("hba1c_percent", 5.0) > 5.7 and v.get("triglycerides_mg_dl", 100) > 150 and v.get("hdl_c_mg_dl", 60) < hdl_cut:
         mods.append(("metabolic_syndrome_cluster", 0.94))
     if v.get("hs_crp_mg_l", 0.5) > 3.0 and v.get("apoB_mg_dl", 70) > 90:
         mods.append(("inflammation_plus_lipids", 0.97))
     if v.get("rdw_percent", 13) > 14.0:
         mods.append(("elevated_rdw", 0.96))
-    poor_fit = v.get("vo2_max_ml_kg_min", 50) < 35 or v.get("grip_strength_kg", 50) < 40
+    vo2_cut = 28.0 if sex == "female" else 35.0
+    grip_cut = 24.0 if sex == "female" else 40.0
+    poor_fit = v.get("vo2_max_ml_kg_min", 50) < vo2_cut or v.get("grip_strength_kg", 50) < grip_cut
     high_cvd = v.get("apoB_mg_dl", 70) > 90 or v.get("systolic_bp_mmHg", 120) > 140
     if poor_fit and high_cvd:
         mods.append(("poor_fitness_high_cvd", 0.93))
@@ -381,7 +430,7 @@ def interaction_modifier(values):
 
 def compute_loss(values, sex):
     comp = composite_score(values, sex)
-    mod, mods = interaction_modifier(values)
+    mod, mods = interaction_modifier(values, sex)
     adjusted = clamp(comp * mod, lo=0.5, hi=100.0)
     return -math.log(adjusted / 100.0), adjusted, mods
 
@@ -389,13 +438,15 @@ def compute_loss(values, sex):
 # derived and fallback keys
 
 
-def derive_computed_keys(values, measured):
-    # silent creatinine fallback: when cystatin_c_mg_l has never been measured
-    # but creatinine eGFR is present, invert CKD-EPI 2012 so the filtration
-    # slot scores from actual bloodwork with a display flag.
-    if "cystatin_c_mg_l" not in measured and "egfr_cr_ml_min_1_73m2" in measured:
+def derive_computed_keys(values, measured_as_of_dt, target_dt, sex="male", dob=None):
+    # creatinine fallback: when cystatin_c_mg_l has not been measured as of target_dt
+    # but creatinine eGFR has, invert CKD-EPI 2012 cystatin C equation using exact age and sex.
+    if "cystatin_c_mg_l" not in measured_as_of_dt and "egfr_cr_ml_min_1_73m2" in measured_as_of_dt:
         egfr = max(15.0, min(140.0, float(values["egfr_cr_ml_min_1_73m2"])))
-        base = 133.0 * (0.996**47)
+        age = ((target_dt - dob).days / 365.25) if dob is not None else 45.0
+        age = max(18.0, min(100.0, age))
+        sex_factor = 0.932 if sex == "female" else 1.0
+        base = 133.0 * (0.996**age) * sex_factor
         exp = -0.499 if egfr >= base else -1.328
         values["cystatin_c_mg_l"] = round(0.8 * ((egfr / base) ** (1.0 / exp)), 2)
         values["_cys_from_creatinine"] = True
@@ -411,6 +462,13 @@ def _parse_yaml_into(f, by_date, source_tag):
             raw = yaml.safe_load(fp) or {}
         if "omega3_1.47x_epa_dha_index_percent" not in raw and raw.get("epa_percent_weight") is not None and raw.get("dha_percent_weight") is not None:
             raw["omega3_1.47x_epa_dha_index_percent"] = round(1.47 * (float(raw["epa_percent_weight"]) + float(raw["dha_percent_weight"])), 2)
+        if "vat_mass_lbs" not in raw:
+            if raw.get("vat_area_cm2") is not None:
+                # ~11 cm android slab: 453.592 g/lb / 0.94 g/cm3 / 11 cm ~ 44 cm2/lb
+                raw["vat_mass_lbs"] = round(float(raw["vat_area_cm2"]) / 44.0, 2)
+            elif raw.get("vat_lbs_x313.7_cm2") is not None:
+                # backward-compatibility undo for legacy key that multiplied lbs by 313.7
+                raw["vat_mass_lbs"] = round(float(raw["vat_lbs_x313.7_cm2"]) / 313.7, 2)
         if "uacr_mg_g" not in raw:
             if raw.get("urine_albumin_creatinine_ratio_mg_g") is not None:
                 raw["uacr_mg_g"] = float(raw["urine_albumin_creatinine_ratio_mg_g"])
@@ -437,7 +495,7 @@ def _parse_yaml_into(f, by_date, source_tag):
         print(f"# Skipping {f.name}: {e}")
 
 
-# data loading and causal forward-fill
+# data loading and strictly causal forward-fill
 
 
 def load_dated_files():
@@ -462,35 +520,56 @@ def load_dated_files():
     return files, using_sample, raw_paths
 
 
-def load_sex(raw_paths):
+def _parse_dob(raw):
+    dob_val = raw.get("dob")
+    if isinstance(dob_val, datetime):
+        return dob_val.date()
+    if isinstance(dob_val, date):
+        return dob_val
+    if isinstance(dob_val, str):
+        for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y"):
+            try:
+                return datetime.strptime(dob_val.strip(), fmt).date()
+            except ValueError:
+                pass
+    by = raw.get("birth_year")
+    if by is not None:
+        try:
+            return date(int(by), 7, 1)
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def load_profile(raw_paths):
+    sex = "male"
+    dob = None
     for f in raw_paths:
         with open(f) as fp:
             raw = yaml.safe_load(fp) or {}
         if raw.get("sex") in ("male", "female"):
-            return raw["sex"]
-    return "male"
+            sex = raw["sex"]
+        if dob is None:
+            dob = _parse_dob(raw)
+    return sex, dob
 
 
 def _select_date_for_key(key, target, dated_files):
-    # causal forward-fill: prefer most recent measurement on or before target (d <= target);
-    # fall back to earliest future measurement only before a biomarker's first draw.
+    # strictly causal forward-fill: use only measurements on or before target (d <= target).
+    # keys never measured on or before target fall back to population DEFAULTS so past
+    # timeline points remain immutable when new biomarkers are added later.
     past_dist, past_date, past_val, past_tag = float("inf"), None, None, "measured"
-    fut_dist, fut_date, fut_val, fut_tag = float("inf"), None, None, "measured"
     for d, vals in dated_files:
         if key in vals and vals[key] is not None:
             diff = (target - d).days
-            tag = vals.get("_sources", {}).get(key, "measured")
-            if diff >= 0 and diff < past_dist:
+            if 0 <= diff < past_dist:
+                tag = vals.get("_sources", {}).get(key, "measured")
                 past_dist, past_date, past_val, past_tag = diff, d, vals[key], tag
-            elif diff < 0 and (-diff) < fut_dist:
-                fut_dist, fut_date, fut_val, fut_tag = -diff, d, vals[key], tag
-    if past_date is not None:
-        return past_date, past_val, past_tag
-    return fut_date, fut_val, fut_tag
+    return past_date, past_val, past_tag
 
 
-def fill_for_date(target, dated_files):
-    result = dict(DEFAULTS)
+def fill_for_date(target, dated_files, sex="male"):
+    result = {k: get_default(k, sex) for k in DEFAULTS}
     for key in DEFAULTS:
         _, val, _ = _select_date_for_key(key, target, dated_files)
         if val is not None:
@@ -498,9 +577,11 @@ def fill_for_date(target, dated_files):
     return result
 
 
-def measured_keys_ever(dated_files):
+def measured_keys_as_of(target, dated_files):
     seen = set()
-    for _, vals in dated_files:
+    for d, vals in dated_files:
+        if d > target:
+            continue
         for k, v in vals.items():
             if v is not None and k in DEFAULTS:
                 seen.add(k)
@@ -555,17 +636,12 @@ def intervention_for(key):
     return meta["intervention"] if meta else None
 
 
-def is_aspirational(key):
-    meta = METRIC_META.get(key)
-    return bool(meta and meta.get("aspirational"))
-
-
 # output
 
 
 def main():
     dated_files, using_sample, raw_paths = load_dated_files()
-    sex = load_sex(raw_paths)
+    sex, dob = load_profile(raw_paths)
 
     if not dated_files:
         print("# No data files found.")
@@ -576,27 +652,26 @@ def main():
     if using_sample:
         print("# Using sample_data/ for demonstration -- add files to dated_test_results/ for real results")
 
-    measured = measured_keys_ever(dated_files)
-
     timeline = []
     for dt, _ in dated_files:
-        vals = fill_for_date(dt, dated_files)
-        vals = derive_computed_keys(vals, measured)
+        measured_dt = measured_keys_as_of(dt, dated_files)
+        vals = fill_for_date(dt, dated_files, sex)
+        vals = derive_computed_keys(vals, measured_dt, dt, sex, dob)
         loss, comp, mods = compute_loss(vals, sex)
-        timeline.append((dt, loss, comp, mods, vals))
+        timeline.append((dt, loss, comp, mods, vals, measured_dt))
 
-    for dt, loss, _, _, _ in timeline:
+    for dt, loss, _, _, _, _ in timeline:
         print(f"{dt.strftime('%Y_%m_%d')} {loss:.4f}")
 
     print()
     print("---")
     print()
 
-    latest_dt, latest_loss, latest_comp, latest_mods, latest_vals = timeline[-1]
+    latest_dt, latest_loss, latest_comp, latest_mods, latest_vals, latest_measured = timeline[-1]
 
     non_scoreable = {"egfr_cr_ml_min_1_73m2"} | READOUT_KEYS
     scoreable = [k for k in DEFAULTS if k not in non_scoreable]
-    measured_scoreable = [k for k in scoreable if k in measured or (k == "cystatin_c_mg_l" and "egfr_cr_ml_min_1_73m2" in measured)]
+    measured_scoreable = [k for k in scoreable if k in latest_measured or (k == "cystatin_c_mg_l" and "egfr_cr_ml_min_1_73m2" in latest_measured)]
     never = [k for k in scoreable if k not in measured_scoreable]
     print(f"DATA COVERAGE  (as of {latest_dt}  sex={sex})")
     print(f"  measured : {len(measured_scoreable)} / {len(scoreable)}")
@@ -620,7 +695,7 @@ def main():
             print(f"  {key:<42} {vs:>8}  {ss:>6}  {src}{flag}{creat_note}")
     print()
 
-    print("READOUTS  (actionable recovery & supplement markers -- tracked, not scored in composite)")
+    print("READOUTS  (actionable recovery, bone guardrail & supplement markers -- tracked, not scored in composite)")
     for key in sorted(READOUT_KEYS):
         val = latest_vals.get(key)
         sc = score_key(key, val, sex)
@@ -648,8 +723,7 @@ def main():
     for i, (key, cur, opt, sc, delta, src) in enumerate(grads[:15], 1):
         cs = f"{cur:.2f}" if cur is not None else "-"
         ss = f"{sc:.1f}" if sc is not None else "-"
-        asp = "  *aspirational" if is_aspirational(key) else ""
-        print(f"  {i:<3} {key:<42} {cs:>8} {opt:>8.2f} {ss:>6} {delta:>10.4f}  {src}{asp}")
+        print(f"  {i:<3} {key:<42} {cs:>8} {opt:>8.2f} {ss:>6} {delta:>10.4f}  {src}")
     print()
 
     default_grads = [(k, c, o, s, d) for k, c, o, s, d, src in grads if src == "DEFAULT"]
@@ -691,12 +765,15 @@ def main():
     next_tier.sort(key=lambda x: -x[4])
 
     print("PRIORITY TARGETS")
-    print(f"  FOCUS  (above the cliff -- a {drop*100:.0f}% drop in delta_loss falls after #{cut}; the short list worth new attention)")
-    for key, cur, opt, sc, delta in focus:
-        cs = f"{cur:.2f}" if cur is not None else "?"
-        intv = intervention_for(key)
-        intv_s = f"  ->  {intv}" if intv else ""
-        print(f"     delta_loss={delta:.4f}  {key:<42}  current={cs}  target={opt:.2f}  score={sc:.1f}{intv_s}")
+    if focus:
+        print(f"  FOCUS  (above the cliff -- a {drop*100:.0f}% drop in delta_loss falls after #{cut}; the short list worth new attention)")
+        for key, cur, opt, sc, delta in focus:
+            cs = f"{cur:.2f}" if cur is not None else "?"
+            intv = intervention_for(key)
+            intv_s = f"  ->  {intv}" if intv else ""
+            print(f"     delta_loss={delta:.4f}  {key:<42}  current={cs}  target={opt:.2f}  score={sc:.1f}{intv_s}")
+    else:
+        print("  FOCUS  none (all measured keys near optimal)")
 
     if next_tier:
         print()
@@ -717,9 +794,8 @@ def main():
         print()
         print("  KEEP DOING  (won, but the win is intervention-dependent -- stop adding, never stop maintaining)")
         for key, sc, intv in sorted(keep_doing, key=lambda x: -(x[1] if x[1] is not None else 0.0)):
-            asp = "  *" if is_aspirational(key) else ""
             ss = f"{sc:.1f}" if sc is not None else "-"
-            print(f"     score={ss:>5}  {key:<42}{asp}  <-  {intv}")
+            print(f"     score={ss:>5}  {key:<42}  <-  {intv}")
 
     if cut_loose:
         print()
@@ -731,7 +807,6 @@ def main():
     print()
     print("---")
     print("FOCUS = new effort.  KEEP DOING = sustain, do not stop.  CUT LOOSE = ignore unless trend turns.")
-    print("Aspirational targets (*) are fixed standards/benchmarks; their gap is not necessarily closable.")
     print("Paste this output to an AI agent alongside AGENTS.md Section B for interpretation.")
 
 

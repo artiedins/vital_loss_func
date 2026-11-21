@@ -1,40 +1,36 @@
-# AGENTS.md -- Vitality Loss Function
+# AGENTS.md: Vitality Loss Function
 
 ## What This Is
 
-A scalar health loss function: `loss = -log(composite/100)`. Zero is perfect. Down over time is
-good. Flat is acceptable. Up is a signal.
+A scalar health loss function: `loss = -log(composite/100)`. Zero is perfect. Down over time is good. Flat with aging is acceptable. Up is a signal.
 
-The composite is a weighted sum across seven physiological domains, scoring each biomarker against
-research-derived optimal thresholds. Domain weights reflect relative mortality and
-functional-capacity evidence from large cohort studies. The full scoring logic is in
-`compute_loss.py`.
+The composite is a weighted sum across seven physiological domains (24 scored biomarkers), plus 5 tracked readouts (recovery, bone guardrail, glycemic context, and supplement markers) that are printed and flagged when low without shifting composite weights. Domain weights reflect relative mortality and functional-capacity evidence from large cohort studies. The full scoring logic is in `compute_loss.py`.
 
 **Your role:** You may be asked to do one or both of:
 
-- **Section A** -- Preprocess raw health documents into dated YAML files
-- **Section B** -- Interpret computed output and advise the human
+- **Section A:** Preprocess raw health documents into dated YAML files.
+- **Section B:** Interpret computed output and advise the human.
 
 ---
 
 ## Workflow
 
-### If you can execute code (e.g., coding agent, Claude Code, OpenClaw):
+### If you can execute code (e.g., coding agent, Claude Code, OpenClaw)
 
-1. Read `AGENTS.md` (this file)
-1. Optionally read `compute_loss.py` for exact scoring thresholds
-1. Read documents in `raw_test_results/`
-1. Write dated YAML files to `dated_test_results/`
-1. Run `python compute_loss.py`
-1. Interpret output and advise
+1. Read `AGENTS.md` (this file).
+2. Optionally read `compute_loss.py` for exact scoring thresholds.
+3. Read documents in `raw_test_results/`.
+4. Write dated YAML files to `dated_test_results/` (and `extra_test_results/` for infrequent panels).
+5. Run `python3 compute_loss.py`.
+6. Interpret output and advise.
 
-### If you cannot execute code (e.g., web interface):
+### If you cannot execute code (e.g., web interface)
 
-1. Human uploads raw health documents to you
-1. You produce YAML content -> human saves as `dated_test_results/results_YYYY_MM_DD.yaml`
-1. Human runs `python compute_loss.py`
-1. Human pastes full output back to you
-1. You interpret and advise
+1. Human uploads raw health documents to you.
+2. You produce YAML content; human saves as `dated_test_results/results_YYYY_MM_DD.yaml`.
+3. Human runs `python3 compute_loss.py`.
+4. Human pastes full output back to you.
+5. You interpret and advise.
 
 ---
 
@@ -42,35 +38,27 @@ functional-capacity evidence from large cohort studies. The full scoring logic i
 
 ### Location and naming
 
-Write annual or sub-annual test results to `dated_test_results/` and less frequent test results
-(multi-year or once-per-lifetime markers such as Lp(a), Cystatin C, NMR subfractions, Free T4/T3,
-and sex hormone panels) to `extra_test_results/`. Filename format in both directories:
-`results_YYYY_MM_DD.yaml` using the **test date**, not today's date. Both `compute_loss.py` and
-`compute_loss_v2.py` load and merge both directories by date.
+Write annual or sub-annual test results to `dated_test_results/` and less frequent test results (multi-year or once-per-lifetime markers such as Lp(a), Cystatin C, NMR subfractions, Free T4/T3, and sex hormone panels) to `extra_test_results/`. Filename format in both directories is `results_YYYY_MM_DD.yaml` using the **test date**, not today's date. `compute_loss.py` loads and merges both directories by date.
 
-One file per test date per directory. If a blood panel was drawn on March 1st and a DEXA scan was
-done on March 15th, write two separate files. The script merges them using causal forward-fill
-(most recent measurement on or before the target date, falling back to the earliest future
-measurement only before a biomarker's first draw).
+Use one file per test date per directory. If a blood panel was drawn on March 1 and a DEXA scan was done on March 15, write two separate files. The script merges them using **strictly causal forward-fill**: for each target date, it uses the most recent measurement on or before that date (`d <= target`) and falls back to sex-specific population medians (`DEFAULTS`) for any biomarker not yet measured. Future measurements never backfill earlier dates, so historical timeline values stay immutable as new tests are added.
 
 ### Rules
 
-- **Omit keys you cannot confidently extract.** Do not guess or estimate. A missing key falls back
-  to a population default, which is better than a wrong value.
-- If a document gives units different from the contract below, convert before writing.
-- Add a YAML comment at the top of each file noting the source document(s) and any relevant context
-  (fasting status, lab name, device used for sleep/HRV).
-- Fasting status matters for glucose and triglycerides -- always annotate.
-- For sleep and HRV values derived from a wearable, note the device and method in a comment and use
-  a 30-day rolling average, not a single-night reading.
+- **Omit keys you cannot confidently extract.** Do not guess or estimate. A missing key falls back to a population median default and surfaces in `TEST THESE`, which is better than an invented number.
+- If a document reports units different from the contract below, convert before writing.
+- Add a YAML comment at the top of each file noting the source document(s) and relevant context (fasting status, lab name, device/protocol used for DEXA, CPET, CMJ, sleep, or HRV).
+- Fasting status matters for glucose and triglycerides; always annotate it.
+- For sleep and HRV values derived from a wearable, note the device and method in a comment and use a 30-day rolling average, not a single-night reading.
 
 ### Example file header
 
 ```yaml
-# Blood panel -- comprehensive metabolic + lipid + thyroid + hs-CRP + homocysteine
+# Blood panel: comprehensive metabolic + lipid + thyroid + hs-CRP + homocysteine
 # Draw date: 2025-03-01. Fasting: yes (12 hours).
-# Fitness and sleep keys not in this file -- in separate dated files.
+# Fitness and sleep keys are stored in separate dated files.
 
+sex: male
+dob: 1980-01-15
 apoB_mg_dl: 68.0
 hba1c_percent: 5.2
 # ...
@@ -82,252 +70,129 @@ hba1c_percent: 5.2
 
 All keys, units, and scoring intent. Include only keys you can confidently derive.
 
-### Global parameter
+### Global profile parameters
 
-**sex** -- `male` or `female` Include this key in any one of your dated YAML files. It applies
-globally to the entire scoring session -- you do not need to repeat it in every file. If absent, the
-script defaults to `male`. Four fitness scoring curves differ by sex (VO2 max, grip strength, CMJ
-height, ALMI); all other biomarker thresholds are sex-neutral.
+**sex** (`male` or `female`): Include this key in any one of your dated YAML files. It applies globally to the scoring session and does not need to be repeated in every file. If absent, the script defaults to `male`. Seven scoring curves differ by sex (`vo2_max_ml_kg_min`, `grip_strength_kg`, `cmj_height_cm`, `almi_kg_m2`, `vat_mass_lbs`, `fmi_kg_m2`, `hdl_c_mg_dl`), as do the creatinine-to-cystatin C fallback factor and sex-specific interaction cutoffs.
+
+**dob** (`YYYY-MM-DD`, or `birth_year: YYYY`): Include in any one dated YAML file. Used to calculate exact age on each test date when inverting CKD-EPI 2012 from creatinine eGFR if Cystatin C has not yet been measured. If absent, the fallback assumes age 45.
 
 ```yaml
 sex: female
+dob: 1980-05-14
 ```
 
 ---
 
 ### Fitness / Function (domain weight: 25%)
 
-**vo2_max_ml_kg_min** -- mL/kg/min (within-domain weight: 30%) Maximum oxygen uptake. Must be from a
-proper incremental lab protocol (Bruce, Balke, or cycle ergometer equivalent) with a metabolic cart.
-Do not use formula estimates from resting HR or submaximal step tests -- these have +-15% error and
-will corrupt this domain. Confirm maximal effort via peak RER >= 1.10 before accepting the value.
-Score 100 at >=52 (male) or >=42 (female), 0 at \<=22 (male) or \<=19 (female). Sources: ACSM/Cooper
-Institute normative data; FRIEND database, Mayo Clinic Proceedings 2015.
+**vo2_max_ml_kg_min** (mL/kg/min, within-domain weight: 35%): Maximum oxygen uptake from an incremental lab CPET protocol (treadmill or cycle ergometer) with a metabolic cart. Do not use formula estimates from resting HR or submaximal step tests (roughly +-15% error). Confirm maximal effort via peak RER >= 1.10 or a clear VO2 plateau before accepting the value. Linear ascending: 100 at >=55.0 (male) or >=45.0 (female), 0 at <=22.0 (male) or <=19.0 (female). The 55/45 targets build an aging reserve (given ~10%/decade physiological decline) so elite cardiovascular capacity holds into later decades. Sources: Mandsager et al., JAMA Netw Open 2018; Kokkinos et al., JACC 2022; FRIEND database, Mayo Clin Proc 2015.
 
-**grip_strength_kg** -- kg (within-domain weight: 20%) Dominant hand, best of 3 attempts with a
-calibrated handheld dynamometer (Jamar or equivalent). Score 100 at >=52 kg (male) or >=36 kg
-(female), 0 at \<=28 kg (male) or \<=16 kg (female). Female poor threshold is the EWGSOP2 sarcopenia
-cutoff, validated in German National Cohort n=200,389. Sources: Cruz-Jentoft et al. Age Ageing 2019;
-Thorand et al. Age Ageing 2023.
+**cmj_height_cm** (cm, within-domain weight: 22%): Countermovement jump height, capturing lower-body explosive power (rate of force development and type II fast-twitch fiber recruitment). Lower-body power declines roughly twice as fast with age as isometric strength or lean mass and governs reactive balance, acceleration, and jumping ability. Measure when fresh after a standardized warm-up using an optical/laser contact timer (e.g., OVR Jump), force plate, or validated contact mat; take the best of 3 to 5 maximal attempts.
 
-**cmj_height_cm** -- cm (within-domain weight: 20%) Countermovement jump height, capturing lower-body
-explosive power (rate of force development and type II fast-twitch fiber recruitment). Lower-body
-power declines roughly twice as fast with age (~3-3.5%/year after age 40) as isometric strength
-(~1.5-2%/year) or lean mass (~1%/year), and is the primary determinant of reactive balance, slip
-recovery, and agility in pickup sports. Measure when fresh after a standardized warm-up using an
-optical/laser flight-time device (e.g., OVR Jump), force plate, or validated contact mat; take the
-best of 3-5 maximal attempts. Keep arm protocol consistent across sessions (hands-on-hips akimbo
-isolates lower-body extension; free-arm swing adds ~10-15% via shoulder/trunk momentum -- note the
-protocol and device in a YAML comment). Score 100 at >=45 cm (male) or >=32 cm (female), 0 at \<=20
-cm (male) or \<=14 cm (female).
+**Protocol lock:** Always use **hands-on-hips (akimbo)** and record the same device across sessions. Free-arm swing adds ~15 to 20% via upper-body momentum, and cross-device offsets between force plates, optical timers, and phone apps can exceed 5 cm. Do not mix arm-swing and akimbo values or compare across different devices. Linear ascending: 100 at >=46.0 cm (male) or >=34.0 cm (female), 0 at <=20.0 cm (male) or <=14.0 cm (female).
 
-**almi_kg_m2** -- kg/m2 (within-domain weight: 15%) Appendicular Lean Mass Index from DEXA: (arms +
-legs lean mass in kg) / height in meters squared. Same DEXA scan as vat_lbs_x313.7_cm2. Score 100 at
-\>=9.5 kg/m2 (male) or >=7.5 kg/m2 (female), 0 at \<=7.0 kg/m2 (male) or \<=5.5 kg/m2 (female). The
-male optimal of 9.5 corresponds to the longevity 75th percentile; the EWGSOP2 sarcopenia cutoff is
-7.0. Sources: Cruz-Jentoft et al. Age Ageing 2019; Tromso Study 2015-16.
+**almi_kg_m2** (kg/m2, within-domain weight: 18%): Appendicular Lean Mass Index from DEXA: `(arms lean + legs lean in kg) / (height in meters)^2`. Linear ascending: 100 at >=9.5 (male) or >=7.5 (female), 0 at <=7.0 (male) or <=5.5 (female). The male lower bound (7.0) and female lower bound (5.5) match the EWGSOP2 sarcopenia cutoffs. Sources: Cruz-Jentoft et al., Age Ageing 2019; Tromso Study 2015-16.
 
-**heart_rate_recovery_bpm** -- bpm (within-domain weight: 15%) HR at peak effort minus HR exactly 60
-seconds after stopping exercise. Requires a chest HR monitor (not optical wrist) for accuracy. Score
-100 at >=30 bpm drop, 0 at \<=10 bpm.
+**grip_strength_kg** (kg, within-domain weight: 15%): Dominant hand, best of 3 attempts with a calibrated handheld dynamometer (Jamar or equivalent). Linear ascending: 100 at >=52.0 kg (male) or >=36.0 kg (female), 0 at <=28.0 kg (male) or <=16.0 kg (female). Sources: Cruz-Jentoft et al., Age Ageing 2019; Thorand et al., Age Ageing 2023.
 
-**Critical:** HRR is only valid when measured after a near-maximum effort -- the final minutes of a
-VO2 max test, a hard interval session, or a dedicated ramp test. Do not extract HRR from Zone 2
-workouts, easy runs, or resting sessions. A Zone 2 HR at end of workout minus HR one minute later
-will produce a low number (often 8-15 bpm) that reflects the modest cardiovascular demand of the
-session, not the autonomic recovery capacity this metric is designed to capture. If the raw data
-does not contain a documented max-effort test, omit this key entirely rather than using a proxy
-value.
+**heart_rate_recovery_bpm** (bpm, within-domain weight: 10%): HR at peak effort minus HR exactly 60 seconds after stopping exercise, measured with a chest HR strap (not optical wrist). Linear ascending: 100 at >=30 bpm, 0 at <=10 bpm.
+
+**Protocol lock:** Valid only for **passive stopped recovery** (standing still or seated immediately after peak effort) following a near-maximal test (VO2 max CPET, maximal ramp test, or all-out interval finish). Do **not** record HRR from submaximal/Zone 2 workouts or from **active walking/jogging cooldowns** (e.g., 2.0 mph treadmill walk), which suppress the 60-second HR drop (often down to 10 to 18 bpm) and do not match the stopped-recovery mortality norms. If the test used an active cooldown or was submaximal, omit this key and note the reason in a YAML comment.
 
 ---
 
 ### Cardiovascular (domain weight: 20%)
 
-**apoB_mg_dl** -- mg/dL Apolipoprotein B. NMR or immunonephelometry. Must be requested specifically
--- not included in all standard lipid panels. Score uses log scale: 100 at \<=60 mg/dL, 0 at >=150
-mg/dL. Linear and nonlinear Mendelian randomization in the UK Biobank (n=347,797; JAMA Netw Open
-2024, PMID 38241044; J Lipid Res 2024, PMID 38458338) demonstrate a monotonically increasing causal
-effect of ApoB on coronary artery disease, cardiovascular mortality, and all-cause mortality across
-the entire concentration distribution with no lower threshold or J-curve; observational J-curves
-below 70 mg/dL reflect reverse causation from frailty and chronic disease. The \<=60 mg/dL anchor
-aligns with the untreated NHANES population-percentile equivalent of LDL-C 70 mg/dL (ApoB 58 mg/dL,
-~5th-10th percentile; Sniderman et al., J Clin Lipidol 2026, PMID 42844100) and the PESA/FLOWPROMOTE
-threshold below which subclinical coronary plaque progression arrests and regression predominates.
+**apoB_mg_dl** (mg/dL, within-domain weight: 40%): Apolipoprotein B by NMR or immunonephelometry. Must be requested specifically. Log-scale descending: 100 at <=60 mg/dL, 0 at >=150 mg/dL. Linear and nonlinear Mendelian randomization in UK Biobank (n=347,797; JAMA Netw Open 2024, PMID 38241044; J Lipid Res 2024, PMID 38458338) show a monotonic causal effect of ApoB on CAD, CVD mortality, and all-cause mortality with no lower J-curve. Untreated NHANES population-percentile equivalents map LDL-C 70 mg/dL to ApoB 58 mg/dL and LDL-C 100 mg/dL to ApoB 79 mg/dL (Cole, Sniderman et al., J Clin Lipidol 2026, PMID 42844100).
 
-**systolic_bp_mmHg** -- mmHg Seated, rested for 5 minutes, validated automated cuff, average of 3
-readings with 1-minute intervals. Do not use a single reading. Scoring is tiered: 100 if \<115, 92
-if 115-119, 85 if 120-129, 65 if 130-139, declining to 0 at 180. Observational data show continuous
-CVD risk reduction down to 115 mmHg; SPRINT validated the \<120 target in an RCT but did not
-directly test \<115 vs \<120.
+**systolic_bp_mmHg** (mmHg, within-domain weight: 30%): Seated, rested 5 minutes, validated automated cuff, average of 3 readings spaced 1 minute apart. Tiered scoring: 100 at <=115, 92 for (115, 120), 85 for [120, 130), 65 for [130, 140), declining linearly to 0 at 180.
 
-**rdw_percent** -- % Red cell distribution width from a CBC. U-shaped scoring: 100 in the 12.0-13.1%
-range, declining to 0 at extremes (\<=10.5% or >=16.5%).
+**resting_hr_bpm** (bpm, within-domain weight: 20%): Overnight minimum from a validated wearable capturing true cardiac minimum during sleep. Linear descending: 100 at <=48 bpm, 0 at >=95 bpm.
 
-**resting_hr_bpm** -- bpm Overnight minimum from a validated wearable that captures true cardiac
-minimum during sleep when sympathetic tone is lowest. Score 100 at \<=48 bpm, 0 at >=95 bpm.
+**rdw_percent** (%, within-domain weight: 10%): Red cell distribution width from CBC. U-shaped plateau: 100 in 12.0 to 13.1%, declining to 0 at <=10.5% or >=16.5%.
 
 ---
 
 ### Metabolic (domain weight: 20%)
 
-**hba1c_percent** -- % NGSP-standardized HbA1c. In standard panels. Optimal zone 5.0-5.4% (mortality
-nadir at 5.38%, JCEM 2019, n=15,869). Values below 5.0% are mildly penalized -- in athletes this
-often reflects faster red blood cell turnover rather than true glycemic benefit. Score 100 at
-5.0-5.4%.
+**vat_mass_lbs** (lbs, within-domain weight: 25%): Visceral adipose tissue mass directly in pounds from DEXA CoreScan (or converted from grams via `g / 453.592`). Log-scale descending: 100 at <=0.75 lb (male) or <=0.50 lb (female), 0 at >=4.50 lb (male) or >=3.50 lb (female). GE Lunar iDXA metabolic-syndrome cutoffs sit at 1,369 g (3.02 lb) in men and 1,082 g (2.39 lb) in women (Bestaoui et al., 2025, PMID 40924743). If CoreScan reads `0.00` to `0.15 lbs` in a very lean person, record the printed value directly (it is at or below the ~60 g scanner precision floor and scores 100); do not fabricate an estimated value.
 
-**glucose_mg_dl** -- mg/dL (optional) Fasting glucose. When present, blends with HbA1c (70/30) to
-form the glycemic component. If absent, HbA1c alone covers glycemic control. Always include if the
-blood draw was fasting. Score 100 at \<=85 mg/dL, optimal target 82 mg/dL (80-84 mg/dL is the
-T2D-risk nadir from a 12.4M-person cohort study).
+*Legacy/area compatibility:* If a DEXA report prints only VAT area in cm2, enter `vat_area_cm2` and `compute_loss.py` converts via `vat_area_cm2 / 44.0` (~11 cm android slab: `453.592 / 0.94 / 11`). Legacy `vat_lbs_x313.7_cm2` files are automatically undone via `/ 313.7` to recover raw lbs.
 
-**vat_lbs_x313.7_cm2** -- cm2 (enter the converted value, not raw lbs) Visceral adipose tissue area
-in cm2, derived from DEXA. Same scan as ALMI. More metabolically relevant than total body fat. Score
-uses log scale: 100 at \<=100 cm2, 0 at >=300 cm2.
+**hba1c_percent** (%, within-domain weight: 25%): NGSP-standardized HbA1c. U-shaped plateau: 100 in 5.0 to 5.4% (mortality nadir ~5.38%, JCEM 2019, n=15,869), mildly penalized below 5.0% (70 at 4.4%), tapering to 75 at 5.7%, 25 at 6.5%, and 0 at 8.0%.
 
-GE Lunar machines report VAT in lbs. Convert before entering:
+**triglycerides_mg_dl** (mg/dL, within-domain weight: 20%): Fasting preferred (8+ hours). Log-scale descending: 100 at <=90 mg/dL, 0 at >=400 mg/dL.
 
-```
-cm2 = lbs * 313.7
-```
+**fmi_kg_m2** (kg/m2, within-domain weight: 15%): Fat Mass Index from DEXA: `total fat mass (kg) / (height in meters)^2`. Captures subcutaneous and total adiposity that VAT misses when VAT is near zero, while remaining independent of lean mass. U-shaped plateau: male 100 in 2.5 to 3.5 kg/m2 (tapers to 50 at 1.5 kg/m2 to guard against excessive leanness/RED-S, and linearly to 0 at 9.0 kg/m2); female 100 in 4.5 to 6.5 kg/m2 (50 at 3.0 kg/m2, 0 at 13.0 kg/m2). Sources: Kelly et al., PLoS ONE 2009; NHANES DXA reference distributions.
 
-The conversion factor 313.7 = 453.592 g/lb / 0.94 g/cm3 * 0.65 cm2/cm3, where 0.94 g/cm3 is visceral
-adipose tissue density and 0.65 cm2/cm3 is the volume-to-area conversion for the L1-L4 measurement
-region.
-
-```yaml
-# GE Lunar scan: VAT reported as 0.16 lbs
-# 0.16 * 313.7 = 50.0
-vat_lbs_x313.7_cm2: 50.0
-```
-
-If a GE Lunar CoreScan displays `0.00 lbs` in a very lean individual, this is a subtraction-floor
-artifact (CoreScan models subcutaneous abdominal fat from lateral wall thickness and subtracts it
-from total L1-L4 Android fat; when true VAT is below the ~0.3-0.5 lb noise floor, the subtraction
-clips at zero). Estimate VAT from Android fat mass and A/G ratio (~0.15-0.25 lbs = 47-78 cm2,
-centered at 50.0 cm2 for a lean insulin-sensitive male) and document the estimate in a YAML comment
-rather than entering `0.0`.
-
-If your DEXA machine reports VAT Area directly in cm2, enter that value unchanged -- the variable
-name documents the conversion for GE Lunar users; the scoring function treats the stored value as
-cm2 regardless of how it was derived. Note in a YAML comment which format your machine uses.
-
-**triglycerides_mg_dl** -- mg/dL Fasting preferred (8+ hours). Score uses log scale: 100 at \<=90
-mg/dL, 0 at >=400 mg/dL.
-
-**hdl_c_mg_dl** -- mg/dL Standard lipid panel. Score 100 at >=65 mg/dL, 0 at \<=30 mg/dL.
+**hdl_c_mg_dl** (mg/dL, within-domain weight: 15%): Standard lipid panel. Sex-specific U-shaped plateau reflecting the observed J-curve at extreme HDL-C (>80 to 100 mg/dL): male 100 in 50 to 75 mg/dL (0 at <=30 or >=110); female 100 in 60 to 85 mg/dL (0 at <=35 or >=120).
 
 ---
 
 ### Sleep / Recovery (domain weight: 12%)
 
-This domain requires a wearable for best accuracy. Missing keys fall back to defaults.
+Requires a validated wearable for best accuracy. Missing keys fall back to population defaults.
 
-**sleep_regularity_index** -- 0-100 (within-domain weight: 40%) Consistency of sleep/wake timing.
-Derivable from any wearable that tracks sleep/wake times over 7+ days. If the device does not report
-SRI directly, it can be computed as the average daily overlap of sleep windows across consecutive
-days. Use a 30-day rolling average. Score 100 at >=85, 0 at \<=45.
+**sleep_regularity_index** (0 to 100, within-domain weight: 55%): Consistency of sleep/wake timing over a 30-day rolling average. Linear ascending: 100 at >=85, 0 at <=45. Source: Windred et al., Sleep 2024 (UK Biobank, n=88,975).
 
-**sleep_duration_hours** -- hours (within-domain weight: 30%) Average nightly sleep duration (time
-asleep, not time in bed). 30-day average. Score 100 at 6.5-8.0 hours. The penalty for sleeping less
-than 6.5h is steep; the penalty for sleeping more than 8.0h is shallow (long sleep in active
-individuals often reflects recovery need rather than pathology).
-
-**hrv_ms** -- ms (RMSSD) (within-domain weight: 30%) Root mean square of successive differences in
-R-R intervals. Two acceptable sources: (1) chest strap morning supine 5-minute protocol -- lie flat
-before rising, no caffeine; (2) wearable overnight average. The morning supine protocol produces a
-more controlled, reproducible number; overnight averages are convenient but blend readings across
-sleep stages. Do not use HRV readings from during exercise or from optical wrist sensors during
-activity. Note the source in a YAML comment. Score 100 at >=60 ms, 0 at \<=18 ms. **This value
-declines naturally with age even in healthy individuals -- a declining hrv_ms over years is expected
-biology, not failure.**
+**sleep_duration_hours** (hours, within-domain weight: 45%): Average nightly time asleep (not time in bed), 30-day rolling average. Asymmetric U-shape: 100 in 6.5 to 8.0 hours, steep left penalty (0 at 4.5 h), shallower right penalty (70 at 9.5 h).
 
 ---
 
 ### Inflammation (domain weight: 12%)
 
-**hs_crp_mg_l** -- mg/L (within-domain weight: 45%) HIGH-SENSITIVITY CRP -- must be requested
-specifically. Standard CRP panels have a detection floor of ~3-5 mg/L and are useless for
-optimization at low levels. Avoid testing within 2 weeks of illness, injury, vaccination, or intense
-exercise. Score uses log scale: 100 at \<=0.5 mg/L, 0 at >=15 mg/L.
+**hs_crp_mg_l** (mg/L, within-domain weight: 45%): High-sensitivity CRP (standard CRP has a ~3 to 5 mg/L floor and cannot be used). Avoid testing within 2 weeks of illness, injury, vaccination, or unusually hard exercise. Log-scale descending: 100 at <=0.5 mg/L, 0 at >=15.0 mg/L.
 
-**homocysteine_umol_l** -- umol/L (within-domain weight: 30%) Fasting. Must be requested
-specifically -- not in standard panels. Primary modulators are B12, B6, and folate. Score uses log
-scale: 100 at \<=6.5 umol/L, 0 at >=25 umol/L.
+**homocysteine_umol_l** (umol/L, within-domain weight: 30%): Fasting, requested specifically. U-shaped mortality plateau: 100 in 7.0 to 10.0 umol/L, tapering down below 7.0 (-12 pts per umol/L) and above 10.0 (-15 pts per umol/L).
 
-**omega3_1.47x_epa_dha_index_percent** -- % RBC-membrane equivalent (within-domain weight: 25%) The
-Omega-3 Index, expressed as RBC-membrane EPA+DHA equivalent. Many commercial omega-3 tests report
-whole-blood values; you must convert before entering.
-
-**How to derive this value from a whole-blood EPA+DHA result:**
-
-1. Find the EPA % by weight and DHA % by weight values on the report
-1. Add them together (do NOT include DPA -- it adds no incremental predictive power to the Index per
-   founding Harris/Von Schacky studies and the Atherosclerosis 2017 10-cohort meta-analysis)
-1. Multiply the sum by 1.47 (whole-blood to RBC-membrane conversion, Stark et al. Prostaglandins
-   2016\)
-1. Enter that result as `omega3_1.47x_epa_dha_index_percent`
-
-Example: EPA 0.5% + DHA 3.1% = 3.6% whole-blood. 3.6 x 1.47 = 5.3. Enter 5.3.
-
-Score 100 at >=8% RBC-equivalent (low-risk zone, Harris/Von Schacky 2004), 0 at \<=4%. Intervention:
-EPA+DHA supplementation at 2-4g/day typically raises the index 2-3 points over 3-6 months. Retest at
-3-month intervals when actively supplementing.
-
-```yaml
-# Whole-blood EPA+DHA: EPA 0.5, DHA 3.1, DPA 0.8 (DPA excluded)
-# (0.5 + 3.1) * 1.47 = 5.3
-omega3_1.47x_epa_dha_index_percent: 5.3
-```
+**omega3_1.47x_epa_dha_index_percent** (% RBC-membrane equivalent, within-domain weight: 25%): Omega-3 Index expressed as RBC-membrane EPA+DHA equivalent. Linear ascending: 100 at >=8.0%, 0 at <=4.0%. If your lab reports whole-blood EPA % and DHA % by weight, `compute_loss.py` automatically computes `1.47 * (epa_percent_weight + dha_percent_weight)` (excluding DPA; Stark et al., Prostaglandins 2016; Harris and Von Schacky, Prev Med 2004).
 
 ---
 
 ### Renal / Organ (domain weight: 6%)
 
-The renal domain stages kidney and vascular endothelial health across two orthogonal KDIGO axes:
-glomerular filtration (`cystatin_c_mg_l`) and glomerular barrier integrity (`uacr_mg_g`), alongside
-serum albumin (`albumin_g_dl`).
+Stages kidney and vascular endothelial health across two orthogonal KDIGO axes: glomerular filtration (`cystatin_c_mg_l`) and glomerular barrier integrity (`uacr_mg_g`), plus serum albumin (`albumin_g_dl`).
 
-**cystatin_c_mg_l** -- mg/L (within-domain weight: 60%) More stable than creatinine; unaffected by
-muscle mass or creatine supplementation; strongest single blood predictor of mortality per Yang et
-al. 2023. Score uses log scale: 100 at \<=0.85 mg/L, 0 at >=2.0 mg/L. Because CKD-EPI 2012
-cystatin-C eGFR is a deterministic function of `cystatin_c_mg_l`, age, and sex, `egfr_ml_min_1_73m2`
-is omitted from the domain so the same filtration measurement is not double-counted.
+**cystatin_c_mg_l** (mg/L, within-domain weight: 60%): Unaffected by muscle mass or creatine supplementation; strongest single blood predictor of mortality (Yang et al., J Transl Med 2023). Log-scale descending: 100 at <=0.85 mg/L, 0 at >=2.0 mg/L.
 
-**uacr_mg_g** -- mg/g (within-domain weight: 25%) Urine albumin-to-creatinine ratio (or spot urine
-microalbumin; if entered as `urine_microalbumin_mg_dl`, the script converts `1 mg/dL -> 10 mg/g` at
-standard ~100 mg/dL urine creatinine). Captures glomerular endothelial barrier integrity and microvascular
-health orthogonal to filtration rate. Score uses log scale: 100 at \<=5.0 mg/g, 47.3 at the 30 mg/g
-clinical microalbuminuria cutoff, and 0 at >=150 mg/g.
+**uacr_mg_g** (mg/g, within-domain weight: 25%): Urine albumin-to-creatinine ratio. If entered as `urine_albumin_creatinine_ratio_mg_g`, the script aliases it directly; if entered as spot `urine_microalbumin_mg_dl` (with optional `urine_creatinine_mg_dl`), the script converts using `1000 * microalbumin / urine_creatinine` or `10 * microalbumin` at an assumed 100 mg/dL urine creatinine. Log-scale descending: 100 at <=5.0 mg/g, 47.3 at 30 mg/g, 0 at >=150 mg/g.
 
-**egfr_cr_ml_min_1_73m2** -- mL/min/1.73m2 (fallback input, not an independent scored slot)
-Creatinine-only eGFR from standard blood panels. When `cystatin_c_mg_l` has never been measured, the
-script inverts CKD-EPI 2012 to populate the filtration slot and flags the creatinine source in output.
+**egfr_cr_ml_min_1_73m2** (mL/min/1.73m2, fallback input only): Creatinine-based eGFR from standard blood panels. On dates where `cystatin_c_mg_l` has not yet been measured, `compute_loss.py` inverts CKD-EPI 2012 using exact age (`dob`) and `sex` (0.932 factor for females) to populate the filtration slot and flags the creatinine source in output.
 
-**albumin_g_dl** -- g/dL (within-domain weight: 15%) Serum albumin. Standard panel. Score 100 at
-\>=4.2 g/dL, 0 at \<=3.0 g/dL.
+**albumin_g_dl** (g/dL, within-domain weight: 15%): Serum albumin. Linear ascending: 100 at >=4.2 g/dL, 0 at <=3.0 g/dL.
 
 ---
 
 ### Hormonal (domain weight: 5%)
 
-**tsh_miu_l** -- mIU/L 3rd-generation TSH. Optimal range is 1.9-2.9 mIU/L per Lancet Diabetes
-Endocrinology 2023 (n=134K UK Biobank participants). Standard clinical range (0.5-4.5) is too broad
-for vitality optimization. Score 100 at 1.9-2.9.
+**tsh_miu_l** (mIU/L, within-domain weight: 60%): 3rd-generation TSH. Optimal plateau 1.9 to 2.9 mIU/L (Xu et al., Lancet Diabetes Endocrinol 2023, n=134K+), tapering to 70 at 0.5 and 70 at 5.0.
 
-**free_t4_ng_dl** -- ng/dL FREE T4 -- must be requested specifically. Total T4 is not equivalent.
-Standard reference range 0.8-1.8 ng/dL. Score 100 at 0.9-1.4 ng/dL.
+**free_t4_ng_dl** (ng/dL, within-domain weight: 40%): Free T4 (total T4 is not equivalent). Optimal plateau 0.9 to 1.4 ng/dL, linear to 0 at <=0.5 or >=2.0.
+
+---
+
+### Readout Keys (tracked and flagged when <60, not scored in composite)
+
+These 5 keys appear under `READOUTS` and print an action note when they fall below score 60 (`LOW`), without adding noise or double-counting to the composite loss:
+
+- **bmd_t_score** (SD): Total-body or clinical hip/spine DEXA T-score. Linear ascending: 100 at >=0.0, 60 at -1.0 (WHO osteopenia boundary, flags `LOW` below -1.0), 0 at <=-2.5 (WHO osteoporosis).
+- **glucose_mg_dl** (mg/dL): Fasting glucose readout paired alongside HbA1c. Linear descending: 100 at <=90 mg/dL, 0 at >=125 mg/dL.
+- **hrv_ms** (ms, RMSSD): Autonomic recovery readout (morning supine 5-min chest strap or 30-day wearable overnight average). Linear ascending: 100 at >=48 ms, 0 at <=20 ms. Declines naturally with age (~0.5 to 1 ms/year); use sudden drops or low baselines to pace high-intensity/plyometric load vs easy aerobic work.
+- **magnesium_rbc_mg_dl** (mg/dL): RBC magnesium supplement readout. U-shaped plateau: 100 in 5.5 to 6.5 mg/dL, 0 at <=4.0 or >=8.0.
+- **methylmalonic_acid_nmol_l** (nmol/L): Functional B12 status readout. Linear descending: 100 at <=150 nmol/L, 0 at >=300 nmol/L.
 
 ---
 
 ### Interaction Penalties
 
-These are multiplicative reductions applied to the composite when co-occurring conditions produce
-synergistic (non-additive) risk. The script computes and reports them automatically.
+Multiplicative reductions applied to the composite when co-occurring risk conditions are present:
 
-| Condition | Trigger | Reduction | |-----------|---------|-----------| | Metabolic syndrome cluster
-| HbA1c >5.7 AND triglycerides >150 AND HDL \<40 | 6% | | Inflammation + atherogenic lipids | hs-CRP
-\>3.0 AND ApoB >90 | 3% | | Elevated RDW | RDW >14% | 4% | | Poor fitness + high CVD risk | (VO2 \<35
-OR grip \<40) AND (ApoB >90 OR SBP >140) | 7% |
+| Condition | Trigger | Reduction |
+|---|---|---|
+| Metabolic syndrome cluster | HbA1c >5.7 AND triglycerides >150 AND HDL <40 (male) or <50 (female) | 6% |
+| Inflammation + atherogenic lipids | hs-CRP >3.0 AND ApoB >90 | 3% |
+| Elevated RDW | RDW >14.0% | 4% |
+| Poor fitness + high CVD risk | (VO2 <35 male / <28 female OR grip <40 male / <24 female) AND (ApoB >90 OR SBP >140) | 7% |
 
 ---
 
@@ -335,95 +200,48 @@ OR grip \<40) AND (ApoB >90 OR SBP >140) | 7% |
 
 ### Output structure
 
-Lines matching `YYYY_MM_DD NNNN.NNNN` are the primary loss curve. Everything after `---` is
-debug/analysis.
+Lines matching `YYYY_MM_DD NNNN.NNNN` are the primary loss curve. Everything after `---` is analysis (coverage, latest domain values, readouts, interaction penalties, gradient ranking, and priority tiers).
 
 ### The loss value
 
-`loss = -log(composite/100)`. At composite=100, loss=0. At composite=87, loss~=0.14. At
-composite=70, loss~=0.36. The scale is non-linear: improvements at the high end (e.g., 90->95) are
-harder to achieve and register as smaller loss reductions than equivalent improvements at the low
-end (e.g., 60->65). This is intentional.
+`loss = -log(composite/100)`. At composite=100, loss=0.0000. At composite=90, loss=0.1054. At composite=70, loss=0.3567. Improvements from low scores register larger loss drops than equal point gains near 100.
 
 **What the trend means:**
 
-- Loss decreasing over time: interventions are working or tests are confirming better-than-default
-  values
-- Loss flat over a year: maintaining position -- acceptable if aging is expected to increase it
-- Loss increasing: either real biological decline, or previously unknown poor values being revealed
-  by new testing
+- Loss decreasing over time: interventions are working, or new tests confirm values better than population defaults.
+- Loss flat over a year: maintaining position despite aging.
+- Loss increasing: real physiological decline, or previously unmeasured poor values revealed by new tests. Because fill is strictly causal, past timeline entries never shift retroactively when new tests arrive.
 
-### The gradient table
+### The gradient table and priority tiers
 
-The gradient table shows how much the loss would drop if each key were brought to its optimal value.
-This is the gradient vector for descending the loss function. It already accounts for domain weights
-and within-domain component weights. The keys at the top of the table are where intervention has the
-most leverage -- they are, literally, the direction of steepest descent.
+The gradient table ranks every scored biomarker by `delta_loss` (the loss drop if that key moved from its current value to optimal). Every optimal in `OPTIMALS` sits on the exact 100-point edge (or plateau midpoint) of `score_key()`, so targets never overshoot.
 
-**Two source types:**
+`compute_loss.py` partitions keys into five operational buckets:
 
-- `DEFAULT`: This key has never been tested. The gradient reflects the difference between the
-  population default and optimal. A high-gradient DEFAULT key means: test this first -- you may
-  discover your actual value is better than the default (loss drops) or worse (loss rises, revealing
-  a real problem). Either outcome is informative.
-- `measured:YYYY-MM-DD`: Real data. A high-gradient measured key is a genuine intervention target.
+- **FOCUS:** Measured keys above the sharpest drop-off (`>=35%` cliff) in `delta_loss`. The short list worth new training, nutrition, or clinical effort.
+- **NEXT TIER:** Measured keys below the cliff with `score < 92` and `delta_loss >= 0.005`. Real secondary levers; keep progressing without crowding out `FOCUS`.
+- **TEST THESE:** Unmeasured keys currently on population `DEFAULTS` with `delta_loss > 0.001`. Test these before guessing interventions.
+- **KEEP DOING:** High-scoring measured keys (`>=92` or small gradient) whose win depends on ongoing habits or therapy. Sustain them; do not add unnecessary extra volume.
+- **CUT LOOSE:** High-scoring measured keys with no direct behavioral lever (renal/thyroid labs). Ignore unless a trend turns.
 
 ### Advising the human
 
-Use the gradient table as your primary guide. Address in this order:
+Address items in this order:
 
-1. **High-gradient DEFAULT keys** -- recommend testing. These are the keys most likely to move the
-   loss.
-
-1. **High-gradient measured keys** -- recommend interventions. Key levers by domain:
-
-   - **fitness**: Zone 2 cardio (VO2 max, resting HR, HRR), high-intensity intervals (VO2 max
-     ceiling), resistance training (ALMI, grip strength), plyometrics and explosive power work
-     (CMJ height)
-   - **cardiovascular**: ApoB responds to diet (reduce saturated fat, add soluble fiber) and
-     lipid-lowering therapy (ezetimibe 10 mg lowers ApoB ~15-18%; low-dose statin + ezetimibe lowers
-     ApoB ~40-50%), systolic BP responds to sodium reduction, exercise, sleep
-   - **metabolic**: VAT responds to sustained caloric deficit + aerobic exercise; HDL responds to
-     Zone 2 cardio and alcohol reduction; triglycerides respond to sugar/refined carb reduction
-   - **sleep**: SRI responds to fixed wake time (most powerful lever); sleep duration responds to
-     earlier bedtime; HRV responds to reduced alcohol, lower training load, and improved sleep
-     quality
-   - **inflammation**: hs-CRP responds to weight loss, sleep improvement, anti-inflammatory diet;
-     homocysteine responds to methylated B12/B6/folate supplementation (confirm deficiency first);
-     omega3 index responds to EPA+DHA supplementation (typically 2-4g/day raises the RBC-equivalent
-     index 2-3 points over 3-6 months -- retest at 3 months when actively supplementing; note that
-     EPA-only formulations such as icosapent ethyl show stronger cardiovascular event reduction in
-     RCTs than combined EPA+DHA products, though both raise the index)
-   - **renal**: cystatin C and eGFR -- flag any concerning values for clinical evaluation; when the
-     output note says "creatinine source; muscle-mass upward bias possible," recommend upgrading to
-     a cystatin C panel; hydration and avoiding nephrotoxic substances are the primary lifestyle
-     levers
-   - **hormonal**: TSH outside 1.9-2.9 warrants clinical evaluation; do not recommend self-directed
-     thyroid intervention
-
-1. **Active interaction penalties** -- these compound risk and should be addressed before marginal
-   optimization of individual biomarkers. Metabolic syndrome cluster and poor fitness + high CVD are
-   the highest-priority penalties.
+1. **Active interaction penalties** and **LOW (`<60`) readout flags** (e.g., osteopenia `bmd_t_score < -1.0`, B12/magnesium deficiency, or suppressed HRV indicating recovery mismatch).
+2. **`TEST THESE` default keys** with large `delta_loss` so real measurements replace population medians.
+3. **`FOCUS` keys** first, then **`NEXT TIER`** keys, using domain-appropriate levers:
+   - **Fitness:** Polarized endurance (1 to 2x/week VO2 max intervals such as 4x4 min at 90 to 95% HRmax, or low-impact incline/bike intervals when tendons are sensitive, layered on top of an easy sub-LT1 aerobic base); progressive lower-body strength plus maximal-intent plyometrics with gradual tendon load progression for CMJ; hypertrophy resistance training + protein + 5 g creatine for ALMI; heavy carries/dead hangs/pulling for grip.
+   - **Cardiovascular:** ApoB responds to saturated fat reduction, soluble fiber (psyllium), and lipid-lowering therapy (ezetimibe 10 mg lowers ApoB ~15 to 18%; low-dose statin + ezetimibe lowers ApoB ~40 to 50%); systolic BP responds to aerobic volume, sodium/potassium balance, and sleep.
+   - **Metabolic:** VAT and FMI respond to modest energy deficit, high protein, and consistent aerobic + resistance volume; triglycerides respond to refined-carb/alcohol reduction and omega-3; HDL responds to aerobic activity.
+   - **Sleep:** Fixed wake time drives SRI; protecting the sleep opportunity window drives duration.
+   - **Inflammation:** Aerobic base, lean body composition, and omega-3 (~2 to 4 g/day EPA+DHA) drive hs-CRP and the Omega-3 Index; B12/methylfolate lower elevated homocysteine toward the 7 to 10 umol/L plateau.
+   - **Renal / Hormonal:** Flag out-of-range values for clinical evaluation. When Cystatin C shows a creatinine fallback note, recommend a direct Cystatin C blood test to remove muscle-mass and creatine confounding.
 
 ### On defaults vs measurements
 
-When many keys are on defaults, the loss value has wide uncertainty. A loss of 0.15 with 18/22 keys
-measured is more reliable than 0.15 with 8/22. When advising, note how many keys are on defaults and
-which domains they fall in. The sleep domain is commonly all-defaults for users without a wearable
--- flag this explicitly and note it affects the 12% sleep weight.
-
-### Calibration note on HRV
-
-HRV (hrv_ms) declines approximately 0.5-1 ms/year in healthy individuals regardless of fitness. A
-gradual decline in this component over years is expected biology. Sudden drops (>10 ms over weeks)
-are a signal worth noting. The score does not age-adjust HRV intentionally -- the loss function uses
-absolute thresholds so the loss curve naturally rises with aging if nothing else changes, which is
-the intended behavior.
+Always check `DATA COVERAGE` (`measured : X / 24`). A loss of 0.15 with 24/24 measured carries far higher certainty than 0.15 with 10/24 measured. When the sleep domain is on defaults (no wearable), flag that it covers 12% of the composite.
 
 ### What this function cannot tell you
 
-This loss function captures objectively measurable biomarkers. It does not capture sleep
-architecture quality, cognitive function, bone mineral density, advanced inflammatory cytokines
-(IL-6, TNF-alpha), lipoprotein particle size, or genetic risk factors. High scores on this function
-are meaningful but not complete. Encourage clinical evaluation for any value flagged as LOW or any
-interaction penalty that fires.
+This loss function captures 24 scored biomarkers and 5 readouts, not every aspect of health. It does not capture sleep architecture, cognitive function, tendon/joint load tolerance, advanced inflammatory cytokines (IL-6, TNF-alpha), coronary artery calcium / CT angiography, or genetic risk (such as Lp(a)). Treat high scores as strong evidence within scope, not a substitute for clinical care or injury management.
